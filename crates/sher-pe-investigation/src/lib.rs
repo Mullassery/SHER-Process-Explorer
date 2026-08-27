@@ -516,6 +516,12 @@ mod tests {
         ) -> sher_pe_telemetry::Result<sher_pe_model::SchedulerStats> {
             self.0.scheduler_stats(pid)
         }
+        fn container_info(
+            &self,
+            pid: PidType,
+        ) -> sher_pe_telemetry::Result<Option<sher_pe_model::ContainerInfo>> {
+            self.0.container_info(pid)
+        }
     }
 
     fn new_intelligence() -> (Arc<MockTelemetryAdapter>, ProcessIntelligence) {

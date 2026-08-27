@@ -328,6 +328,11 @@ impl ProcessIntelligence {
         self.adapter.scheduler_stats(pid)
     }
 
+    /// The container (Docker/Podman/containerd) that owns `pid`, if any.
+    pub fn container_info(&self, pid: Pid) -> Result<Option<sher_pe_model::ContainerInfo>> {
+        self.adapter.container_info(pid)
+    }
+
     /// A short, opt-in stack-sampling profile of `pid` via `perf`
     /// (`Tier::Profile`). Blocks for roughly `duration` while the sample
     /// runs — not something to call from a UI's continuous refresh loop.
@@ -437,6 +442,12 @@ mod tests {
         }
         fn scheduler_stats(&self, pid: Pid) -> sher_pe_telemetry::Result<SchedulerStats> {
             self.0.scheduler_stats(pid)
+        }
+        fn container_info(
+            &self,
+            pid: Pid,
+        ) -> sher_pe_telemetry::Result<Option<sher_pe_model::ContainerInfo>> {
+            self.0.container_info(pid)
         }
     }
 

@@ -120,6 +120,7 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
             security: Option<sher_pe_model::SecurityContext>,
             systemd_unit: Option<String>,
             scheduler_stats: Option<sher_pe_model::SchedulerStats>,
+            container: Option<sher_pe_model::ContainerInfo>,
         }
         let inspection = Inspection {
             process: process.clone(),
@@ -129,6 +130,7 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
             security: intel.security(pid).ok(),
             systemd_unit: intel.systemd_unit(pid).ok().flatten(),
             scheduler_stats: intel.scheduler_stats(pid).ok(),
+            container: intel.container_info(pid).ok().flatten(),
         };
         print_json_or(json, &inspection, || {});
         return 0;
@@ -147,6 +149,15 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
     );
     if let Ok(Some(unit)) = intel.systemd_unit(pid) {
         println!("systemd:  {unit}");
+    }
+    if let Ok(Some(container)) = intel.container_info(pid) {
+        println!(
+            "container: {:?} {} (image: {}, status: {})",
+            container.runtime,
+            container.name.as_deref().unwrap_or(&container.id[..12]),
+            container.image.as_deref().unwrap_or("unknown"),
+            container.status.as_deref().unwrap_or("unknown")
+        );
     }
 
     println!("\n=== Memory ===");

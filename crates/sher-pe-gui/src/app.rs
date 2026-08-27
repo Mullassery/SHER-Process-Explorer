@@ -282,6 +282,16 @@ impl SherApp {
         if let Ok(Some(unit)) = self.intel.systemd_unit(pid) {
             ui.label(format!("systemd unit: {unit}"));
         }
+        if let Ok(Some(container)) = self.intel.container_info(pid) {
+            ui.separator();
+            ui.label(format!(
+                "Container: {:?} {} (image: {}, status: {})",
+                container.runtime,
+                container.name.as_deref().unwrap_or(&container.id[..12]),
+                container.image.as_deref().unwrap_or("unknown"),
+                container.status.as_deref().unwrap_or("unknown")
+            ));
+        }
         if let Some(rollup) = self.intel.family_rollup(pid) {
             ui.separator();
             ui.label(format!(
