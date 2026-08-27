@@ -1,0 +1,3 @@
+10:memory:/user.slice/user-1000.slice
+6:cpu,cpuacct:/user.slice/user-1000.slice
+1:name=systemd:/user.slice/user-1000.slice

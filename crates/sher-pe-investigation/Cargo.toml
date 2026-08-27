@@ -1,0 +1,15 @@
+[package]
+name = "sher-pe-investigation"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Deterministic, evidence-based 'why' investigation engine."
+
+[dependencies]
+sher-pe-model.workspace = true
+sher-pe-intelligence.workspace = true
+
+[dev-dependencies]
+sher-pe-telemetry.workspace = true

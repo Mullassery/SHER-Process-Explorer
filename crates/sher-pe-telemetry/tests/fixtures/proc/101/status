@@ -1,0 +1,10 @@
+Name:	sherd-worker
+State:	S (sleeping)
+Uid:	1000	1000	1000	1000
+Gid:	1000	1000	1000	1000
+VmSize:	  102400 kB
+VmRSS:	   20480 kB
+VmSwap:	       0 kB
+CapEff:	0000000000000000
+CapBnd:	0000000000001fff
+Seccomp:	0

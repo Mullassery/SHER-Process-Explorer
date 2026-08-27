@@ -1,0 +1,34 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/sher-pe-model",
+    "crates/sher-pe-telemetry",
+    "crates/sher-pe-intelligence",
+    "crates/sher-pe-investigation",
+    "crates/sher-pe-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Georgi Mammen Mullassery <mullassery@gmail.com>"]
+license = "Proprietary License — Free to use with explicit attribution"
+repository = "https://github.com/Mullassery/SHER-Process-Explorer"
+
+[workspace.dependencies]
+sher-pe-model = { path = "crates/sher-pe-model" }
+sher-pe-telemetry = { path = "crates/sher-pe-telemetry" }
+sher-pe-intelligence = { path = "crates/sher-pe-intelligence" }
+sher-pe-investigation = { path = "crates/sher-pe-investigation" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive"] }
+nix = { version = "0.29", features = ["sched", "feature"] }
+
+[profile.release]
+opt-level = 3
+lto = true

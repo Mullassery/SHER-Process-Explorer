@@ -1,0 +1,18 @@
+[package]
+name = "sher-pe-telemetry"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "TelemetryAdapter trait + hand-rolled Linux /proc implementation for SHER Process Explorer."
+
+[dependencies]
+sher-pe-model.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix.workspace = true
+
+[dev-dependencies]
