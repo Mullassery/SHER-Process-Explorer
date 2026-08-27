@@ -3,6 +3,7 @@
 
 pub mod affinity;
 pub mod bpftrace;
+pub mod container;
 pub mod kernel_log;
 pub mod perf;
 pub mod procfs;
@@ -12,9 +13,9 @@ pub mod systemd;
 use std::path::{Path, PathBuf};
 
 use sher_pe_model::{
-    CgroupInfo, CpuStats, DiskIoStats, HotFunction, NamespaceInfo, NetworkConnection, OpenFile,
-    Pid, ProcessSnapshot, ProcessState, SchedulerStats, SecurityContext, SyscallStat,
-    ThreadSnapshot, TraceEvent,
+    CgroupInfo, ContainerInfo, CpuStats, DiskIoStats, HotFunction, NamespaceInfo,
+    NetworkConnection, OpenFile, Pid, ProcessSnapshot, ProcessState, SchedulerStats,
+    SecurityContext, SyscallStat, ThreadSnapshot, TraceEvent,
 };
 
 use crate::{Result, TelemetryAdapter};
@@ -145,6 +146,10 @@ impl TelemetryAdapter for LinuxAdapter {
 
     fn scheduler_stats(&self, pid: Pid) -> Result<SchedulerStats> {
         procfs::scheduler::read_schedstat(&self.root, pid)
+    }
+
+    fn container_info(&self, pid: Pid) -> Result<Option<ContainerInfo>> {
+        container::container_info(&self.root, &self.sys_root, pid)
     }
 
     fn sample_hot_functions(

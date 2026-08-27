@@ -13,8 +13,9 @@ pub mod testing;
 use std::time::Duration;
 
 use sher_pe_model::{
-    CgroupInfo, DiskIoStats, HotFunction, NamespaceInfo, NetworkConnection, OpenFile, Pid,
-    ProcessSnapshot, SchedulerStats, SecurityContext, SyscallStat, ThreadSnapshot, TraceEvent,
+    CgroupInfo, ContainerInfo, DiskIoStats, HotFunction, NamespaceInfo, NetworkConnection,
+    OpenFile, Pid, ProcessSnapshot, SchedulerStats, SecurityContext, SyscallStat, ThreadSnapshot,
+    TraceEvent,
 };
 
 pub type Result<T> = std::result::Result<T, TelemetryError>;
@@ -84,6 +85,10 @@ pub trait TelemetryAdapter: Send + Sync {
     /// Scheduler accounting (`Tier::Continuous` — cheap, no sampling
     /// needed): time actually running vs. time waiting for a CPU.
     fn scheduler_stats(&self, pid: Pid) -> Result<SchedulerStats>;
+    /// Container that owns `pid`, if any — detected from its cgroup path,
+    /// enriched via `docker`/`podman inspect` when possible. `Ok(None)`
+    /// for a process that isn't containerized (the common case).
+    fn container_info(&self, pid: Pid) -> Result<Option<ContainerInfo>>;
 
     /// `Tier::Profile` — a short stack-sampling profile via `perf`. `Ok`
     /// with an empty `Vec` is a valid "no samples landed anywhere

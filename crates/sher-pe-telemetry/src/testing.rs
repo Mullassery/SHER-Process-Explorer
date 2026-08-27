@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use sher_pe_model::{
-    CgroupInfo, DiskIoStats, NamespaceInfo, NetworkConnection, OpenFile, Pid, ProcessSnapshot,
-    SchedulerStats, SecurityContext, ThreadSnapshot,
+    CgroupInfo, ContainerInfo, DiskIoStats, NamespaceInfo, NetworkConnection, OpenFile, Pid,
+    ProcessSnapshot, SchedulerStats, SecurityContext, ThreadSnapshot,
 };
 
 use crate::{Result, TelemetryAdapter, TelemetryError};
@@ -23,6 +23,7 @@ pub struct MockTelemetryAdapter {
     connections: Mutex<HashMap<Pid, Vec<NetworkConnection>>>,
     disk_io: Mutex<HashMap<Pid, DiskIoStats>>,
     scheduler_stats: Mutex<HashMap<Pid, SchedulerStats>>,
+    container_info: Mutex<HashMap<Pid, ContainerInfo>>,
 }
 
 impl MockTelemetryAdapter {
@@ -43,6 +44,7 @@ impl MockTelemetryAdapter {
         self.connections.lock().unwrap().remove(&pid);
         self.disk_io.lock().unwrap().remove(&pid);
         self.scheduler_stats.lock().unwrap().remove(&pid);
+        self.container_info.lock().unwrap().remove(&pid);
     }
 
     pub fn set_threads(&self, pid: Pid, threads: Vec<ThreadSnapshot>) {
@@ -59,6 +61,10 @@ impl MockTelemetryAdapter {
 
     pub fn set_scheduler_stats(&self, pid: Pid, stats: SchedulerStats) {
         self.scheduler_stats.lock().unwrap().insert(pid, stats);
+    }
+
+    pub fn set_container_info(&self, pid: Pid, info: ContainerInfo) {
+        self.container_info.lock().unwrap().insert(pid, info);
     }
 }
 
@@ -152,5 +158,9 @@ impl TelemetryAdapter for MockTelemetryAdapter {
             .get(&pid)
             .copied()
             .unwrap_or_default())
+    }
+
+    fn container_info(&self, pid: Pid) -> Result<Option<ContainerInfo>> {
+        Ok(self.container_info.lock().unwrap().get(&pid).cloned())
     }
 }
