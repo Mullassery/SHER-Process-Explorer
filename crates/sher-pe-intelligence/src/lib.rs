@@ -4,12 +4,12 @@
 //! a raw `/proc` field.
 
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use sher_pe_model::{
-    CgroupInfo, DiskIoStats, FamilyRollup, NamespaceInfo, NetworkConnection, OpenFile, Pid,
-    ProcessSnapshot, ProcessTree, SecurityContext, ThreadSnapshot, TimelineEvent,
-    TimelineEventKind,
+    CgroupInfo, DiskIoStats, FamilyRollup, HotFunction, NamespaceInfo, NetworkConnection, OpenFile,
+    Pid, ProcessSnapshot, ProcessTree, SchedulerStats, SecurityContext, SyscallStat,
+    ThreadSnapshot, TimelineEvent, TimelineEventKind,
 };
 use sher_pe_telemetry::{TelemetryAdapter, TelemetryError};
 
@@ -321,6 +321,26 @@ impl ProcessIntelligence {
     pub fn systemd_unit(&self, pid: Pid) -> Result<Option<String>> {
         self.adapter.systemd_unit(pid)
     }
+
+    /// Live scheduler accounting (time running vs. time waiting for a
+    /// CPU) for `pid`.
+    pub fn scheduler_stats(&self, pid: Pid) -> Result<SchedulerStats> {
+        self.adapter.scheduler_stats(pid)
+    }
+
+    /// A short, opt-in stack-sampling profile of `pid` via `perf`
+    /// (`Tier::Profile`). Blocks for roughly `duration` while the sample
+    /// runs — not something to call from a UI's continuous refresh loop.
+    pub fn sample_hot_functions(&self, pid: Pid, duration: Duration) -> Result<Vec<HotFunction>> {
+        self.adapter.sample_hot_functions(pid, duration)
+    }
+
+    /// A short, opt-in syscall-count sample of `pid` via `strace -c`
+    /// (`Tier::ShortSample`). Same blocking caveat as
+    /// `sample_hot_functions`.
+    pub fn sample_syscalls(&self, pid: Pid, duration: Duration) -> Result<Vec<SyscallStat>> {
+        self.adapter.sample_syscalls(pid, duration)
+    }
 }
 
 #[cfg(test)]
@@ -403,6 +423,9 @@ mod tests {
         fn disk_io(&self, pid: Pid) -> sher_pe_telemetry::Result<sher_pe_model::DiskIoStats> {
             self.0.disk_io(pid)
         }
+        fn scheduler_stats(&self, pid: Pid) -> sher_pe_telemetry::Result<SchedulerStats> {
+            self.0.scheduler_stats(pid)
+        }
     }
 
     #[test]
@@ -422,6 +445,25 @@ mod tests {
         intel.refresh_at(1002).unwrap();
         // One more tick later, the grace period is over.
         assert_eq!(intel.history(1).len(), 0);
+    }
+
+    #[test]
+    fn scheduler_stats_passes_through_to_the_adapter() {
+        let (mock, mut intel) = new_intelligence();
+        mock.set_process(snap(1, 0, 100, 0, 1000));
+        mock.set_scheduler_stats(
+            1,
+            sher_pe_model::SchedulerStats {
+                on_cpu_ns: 900,
+                wait_ns: 100,
+                timeslices: 5,
+            },
+        );
+        intel.refresh_at(1000).unwrap();
+
+        let stats = intel.scheduler_stats(1).unwrap();
+        assert_eq!(stats.on_cpu_ns, 900);
+        assert_eq!(stats.wait_ratio_percent(), Some(10.0));
     }
 
     #[test]

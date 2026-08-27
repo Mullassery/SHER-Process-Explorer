@@ -8,6 +8,13 @@ use sher_pe_intelligence::{
 };
 use sher_pe_model::{Confidence, Evidence, Finding, Pid, Severity, TimelineEventKind};
 
+/// Above this fraction of (running + waiting) time spent waiting for a
+/// CPU, scheduling contention is worth calling out explicitly in
+/// `why_cpu` — a documented heuristic (like the memory-growth threshold in
+/// `sher-pe-intelligence`), not a hard fact, hence `Confidence::Likely`
+/// rather than `Observed` when it fires.
+const SCHEDULING_CONTENTION_THRESHOLD_PERCENT: f64 = 20.0;
+
 fn not_found(pid: Pid) -> Finding {
     Finding::new(
         Severity::Info,
@@ -78,31 +85,54 @@ pub fn why_cpu(intel: &ProcessIntelligence, pid: Pid) -> Finding {
     });
 
     const DOMINANCE_THRESHOLD_PERCENT: f64 = 80.0;
-    if threads.len() > 1 && top_share >= DOMINANCE_THRESHOLD_PERCENT {
-        Finding::new(
-            Severity::Notice,
-            "Single-thread CPU dominance",
-            format!(
-                "thread '{}' (tid {}) accounts for {top_share:.1}% of {}'s accumulated CPU ticks across {} threads",
-                top.name, top.tid, process.name, threads.len()
-            ),
-            Confidence::Correlated,
-            evidence,
-        )
+    let (mut severity, title, mut narrative, mut confidence) = if threads.len() > 1
+        && top_share >= DOMINANCE_THRESHOLD_PERCENT
+    {
+        (
+                Severity::Notice,
+                "Single-thread CPU dominance",
+                format!(
+                    "thread '{}' (tid {}) accounts for {top_share:.1}% of {}'s accumulated CPU ticks across {} threads",
+                    top.name, top.tid, process.name, threads.len()
+                ),
+                Confidence::Correlated,
+            )
     } else {
-        Finding::new(
-            Severity::Info,
-            "CPU usage spread across threads",
-            format!(
-                "{} (pid {pid}) is at {:.1}% CPU, spread across {} threads with no single dominant thread",
-                process.name,
-                process.cpu.percent,
-                threads.len()
-            ),
-            Confidence::Observed,
-            evidence,
-        )
+        (
+                Severity::Info,
+                "CPU usage spread across threads",
+                format!(
+                    "{} (pid {pid}) is at {:.1}% CPU, spread across {} threads with no single dominant thread",
+                    process.name,
+                    process.cpu.percent,
+                    threads.len()
+                ),
+                Confidence::Observed,
+            )
+    };
+
+    if let Ok(sched) = intel.scheduler_stats(pid) {
+        if let Some(wait_ratio) = sched.wait_ratio_percent() {
+            evidence.push(Evidence {
+                source: format!("/proc/{pid}/schedstat"),
+                collected_at: now_unix(),
+                description: "time spent waiting for a CPU vs. running on one".into(),
+                raw: format!(
+                    "on_cpu_ns={} wait_ns={} ({wait_ratio:.1}% waiting)",
+                    sched.on_cpu_ns, sched.wait_ns
+                ),
+            });
+            if wait_ratio >= SCHEDULING_CONTENTION_THRESHOLD_PERCENT {
+                severity = severity.max(Severity::Notice);
+                confidence = confidence.min(Confidence::Likely);
+                narrative.push_str(&format!(
+                    "; also spending {wait_ratio:.1}% of its scheduled time waiting for a CPU rather than running — possible scheduling contention"
+                ));
+            }
+        }
     }
+
+    Finding::new(severity, title, narrative, confidence, evidence)
 }
 
 /// Memory breakdown plus, when enough history exists, an RSS growth-rate
@@ -480,6 +510,12 @@ mod tests {
         fn disk_io(&self, pid: PidType) -> sher_pe_telemetry::Result<sher_pe_model::DiskIoStats> {
             self.0.disk_io(pid)
         }
+        fn scheduler_stats(
+            &self,
+            pid: PidType,
+        ) -> sher_pe_telemetry::Result<sher_pe_model::SchedulerStats> {
+            self.0.scheduler_stats(pid)
+        }
     }
 
     fn new_intelligence() -> (Arc<MockTelemetryAdapter>, ProcessIntelligence) {
@@ -572,6 +608,82 @@ mod tests {
 
         let finding = why_cpu(&intel, 1);
         assert_eq!(finding.title, "CPU usage spread across threads");
+    }
+
+    #[test]
+    fn why_cpu_escalates_on_scheduling_contention() {
+        let (mock, mut intel) = new_intelligence();
+        mock.set_process(snap(1, 0, 100, 1000));
+        mock.set_threads(
+            1,
+            vec![ThreadSnapshot {
+                tid: 1,
+                name: "main".into(),
+                state: ProcessState::Running,
+                cpu: CpuStats {
+                    utime_ticks: 100,
+                    ..Default::default()
+                },
+                priority: 20,
+                nice: 0,
+                affinity: vec![],
+            }],
+        );
+        // 30% of scheduled time spent waiting — above the 20% contention
+        // threshold.
+        mock.set_scheduler_stats(
+            1,
+            sher_pe_model::SchedulerStats {
+                on_cpu_ns: 700,
+                wait_ns: 300,
+                timeslices: 10,
+            },
+        );
+        intel.refresh_at(1000).unwrap();
+
+        let finding = why_cpu(&intel, 1);
+        assert_eq!(finding.severity, Severity::Notice);
+        assert_eq!(finding.confidence, Confidence::Likely);
+        assert!(finding.narrative.contains("scheduling contention"));
+        assert!(finding
+            .evidence
+            .iter()
+            .any(|e| e.source.contains("schedstat")));
+    }
+
+    #[test]
+    fn why_cpu_does_not_escalate_below_contention_threshold() {
+        let (mock, mut intel) = new_intelligence();
+        mock.set_process(snap(1, 0, 100, 1000));
+        mock.set_threads(
+            1,
+            vec![ThreadSnapshot {
+                tid: 1,
+                name: "main".into(),
+                state: ProcessState::Running,
+                cpu: CpuStats {
+                    utime_ticks: 100,
+                    ..Default::default()
+                },
+                priority: 20,
+                nice: 0,
+                affinity: vec![],
+            }],
+        );
+        // Only 5% waiting — below the 20% threshold.
+        mock.set_scheduler_stats(
+            1,
+            sher_pe_model::SchedulerStats {
+                on_cpu_ns: 950,
+                wait_ns: 50,
+                timeslices: 10,
+            },
+        );
+        intel.refresh_at(1000).unwrap();
+
+        let finding = why_cpu(&intel, 1);
+        assert_eq!(finding.severity, Severity::Info);
+        assert!(!finding.narrative.contains("scheduling contention"));
     }
 
     #[test]
