@@ -33,12 +33,39 @@ Verified with a real screenshot (via Xvfb + `import` in a Linux container)
 showing live real `/proc` data end-to-end: the process tree, a family
 rollup, and a `why_memory` `Finding` with real evidence, not a mock.
 
-## Phase 2 — Deeper CPU/thread intelligence (Level 2–3 tracing)
+## Phase 2 — Deeper CPU/thread intelligence (Level 2–3 tracing) ✅
 
-Short targeted sampling and explicit profiling: stack sampling for "hot
-function" views, per-thread syscall breakdown, scheduler latency.
-Implemented as new `TelemetryAdapter` methods behind the existing `Tier`
-enum — additive, not a rewrite.
+Scheduler latency (`/proc/[pid]/schedstat`, real parser, `Tier::Continuous`
+since it's cheap — no sampling needed), stack-sampling "hot function" views
+(`sample_hot_functions`, `Tier::Profile`), and syscall-count breakdown
+(`sample_syscalls`, `Tier::ShortSample`). The latter two shell out to the
+real `perf` and `strace` tools — the same "shell out to the real thing"
+MVP-sized choice `systemd.rs`/`kernel_log.rs` already made in Phase 0,
+rather than reimplementing `perf_event_open` + stack unwinding +
+symbolization or ptrace-based syscall tracing from scratch. Both require
+the tool installed and adequate privilege (`CAP_PERFMON`/
+`perf_event_paranoid` for `perf`; ptrace permission for `strace`) — a
+missing tool or insufficient privilege surfaces as a normal error, not a
+crash or a fake empty result.
+
+`why_cpu` folds in scheduling-contention evidence: ≥20% of scheduled time
+spent waiting for a CPU escalates severity to at least Notice and caps
+confidence at `Likely` (a threshold heuristic, not an observed fact).
+
+Exposed in both the CLI (`sher trace`/`sher profile`, previously honest
+stubs, now real) and the GUI (CPU tab: scheduler stats plus "Profile"/
+"Trace syscalls" buttons — both block the window for the sample duration,
+documented in the UI rather than silently freezing).
+
+Verified end-to-end on real Linux against a genuine CPU-busy process
+(`perf`/`strace` actually invoked, not mocked) in a privileged container,
+including a GUI screenshot of the CPU tab mid-round-trip. That testing
+caught two real bugs before they shipped: `perf report`'s output for an
+unresolved symbol (stripped/static binary) appends placeholder columns
+that were being swept into the symbol string, and `println!`-based output
+piped into something that closes early (e.g. `| head`) panicked on
+`SIGPIPE` instead of exiting quietly like other Unix tools — both fixed,
+with a regression test for the first.
 
 ## Phase 3 — eBPF / perf (Level 4 deep tracing)
 

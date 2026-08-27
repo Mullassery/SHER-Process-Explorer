@@ -69,7 +69,24 @@ enum WhyAspect {
     Disk,
 }
 
+/// Rust's runtime ignores `SIGPIPE` by default, which turns a closed
+/// downstream pipe (e.g. `sher ps | head`) into a normal `io::Error` that
+/// `println!` then panics on instead of the process just quietly exiting
+/// the way `grep`/`cat`/every other Unix tool does. Restoring the default
+/// disposition is the standard fix (the same one ripgrep uses).
+#[cfg(unix)]
+fn reset_sigpipe() {
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+}
+
+#[cfg(not(unix))]
+fn reset_sigpipe() {}
+
 fn main() {
+    reset_sigpipe();
+
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();

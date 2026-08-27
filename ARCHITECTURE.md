@@ -105,15 +105,24 @@ Submodules:
 - `linux::procfs::namespace` — `/proc/[pid]/ns/*` inode readlink
 - `linux::procfs::security` — `status` (Uid/Gid/CapEff/CapBnd), best-effort
   LSM label
+- `linux::procfs::scheduler` — `/proc/[pid]/schedstat` (time running vs.
+  time waiting for a CPU)
 - `linux::systemd` — unit-from-cgroup-path mapping + `systemctl show`/
   `journalctl -u` shell-outs (dbus/`zbus` explicitly deferred)
 - `linux::kernel_log` — `dmesg -T` / `/dev/kmsg` best-effort read, used only
   for OOM-kill correlation in the investigation engine
+- `linux::perf` — `perf record`/`perf report` shell-outs for a short
+  stack-sampling profile, parsed into `HotFunction` rows
+- `linux::strace` — `strace -c` (bounded by `timeout`) for a syscall-count
+  summary, parsed into `SyscallStat` rows
 
 Tiered collection (`Tier::{Continuous, ShortSample, Profile, DeepTrace}`)
-exists as an enum so the seam is real, but only `Continuous` (Level 1,
-cheap) is implemented this pass — the rest return a typed
-`TelemetryError::Unsupported`.
+exists as an enum so the seam is real. `Continuous` (Level 1, cheap —
+includes `scheduler_stats`), `ShortSample` (Level 2, `sample_syscalls`),
+and `Profile` (Level 3, `sample_hot_functions`) are implemented for
+`LinuxAdapter`. `DeepTrace` (Level 4, eBPF — Phase 3) is not; an adapter
+that doesn't override `sample_hot_functions`/`sample_syscalls` returns a
+typed `TelemetryError::Unsupported` for those tiers too, by default.
 
 ## `sher-pe-intelligence`
 
@@ -137,7 +146,9 @@ Deterministic, rule-based — explicitly **not** an LLM call this pass (see
 Phase 7 in `ROADMAP.md`).
 
 - `why_cpu(pid) -> Finding` — top threads by CPU%, flags single-thread
-  dominance
+  dominance; also folds in `/proc/[pid]/schedstat`-based scheduling
+  contention (≥20% of scheduled time spent waiting for a CPU escalates
+  severity and caps confidence at `Likely`)
 - `why_memory(pid) -> Finding` — anon/file/shared breakdown, RSS
   growth-rate over the history window (e.g. >50% growth within 60 min →
   `Confidence::Likely` "sustained growth")
@@ -161,11 +172,16 @@ sher tree [pid]                          # hierarchical view + family rollups
 sher inspect <pid>                       # Overview/Memory/CPU/Threads/Files/Network/Security
 sher why <pid> <cpu|memory|network|disk>
 sher investigate <pid>
-sher trace <pid> / sher profile <pid>    # honest errors: Level 3/4 tracing not built
+sher trace <pid>                         # strace -c syscall breakdown (Tier::ShortSample)
+sher profile <pid>                       # perf hot-function sample (Tier::Profile)
 ```
 
 `main()` checks `cfg!(target_os = "linux")` and exits with a clear error
-message on any other OS — no silent no-op.
+message on any other OS — no silent no-op. `SIGPIPE` is reset to its
+default disposition at startup (`reset_sigpipe`, Unix only) so piping into
+something that closes early (`sher ps | head`) exits quietly instead of
+panicking on a broken-pipe write — the standard fix every Unix CLI tool
+needs and Rust's runtime doesn't apply for you.
 
 ## `sher-pe-gui`
 

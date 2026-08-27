@@ -126,11 +126,12 @@ fn parse_perf_report(stdout: &str, path: &Path) -> Result<Vec<HotFunction>> {
                 "user"
             }
             .to_string();
-            let symbol = symbol_part
-                .split_once(' ')
-                .map(|(_, sym)| sym)
-                .unwrap_or(symbol_part)
-                .trim();
+            // Just the token right after the `[.]`/`[k]` marker — when
+            // `perf` can't resolve a symbol name (e.g. a stripped/static
+            // binary) it prints the raw address followed by further
+            // placeholder columns (`  -      -`) that must not be
+            // swept into the symbol string.
+            let symbol = symbol_part.split_whitespace().nth(1).unwrap_or("");
             if symbol.is_empty() {
                 return None;
             }
@@ -177,6 +178,25 @@ mod tests {
         assert!((hot[0].overhead_percent - 42.31).abs() < 0.001);
         assert_eq!(hot[1].symbol, "do_syscall_64");
         assert_eq!(hot[1].module, "kernel");
+    }
+
+    #[test]
+    fn parse_perf_report_drops_placeholder_columns_after_unresolved_symbol() {
+        // Real output from a stripped/static binary in a minimal
+        // container: `perf` can't resolve a name, so it prints the raw
+        // address followed by extra `-` placeholder columns that must
+        // not end up inside the symbol string.
+        let stdout = "\
+# Overhead  Samples  Command  Shared Object  Symbol
+#   ........  .......  .......  .............  ..............
+#
+   100.00%       20  sh        libc.so.6  [.] 0x0000aaaadaa446b0  -      -
+    50.00%       10  sh        libc.so.6  [.] __libc_start_main   -      -
+";
+        let hot = parse_perf_report(stdout, Path::new("test")).unwrap();
+        assert_eq!(hot.len(), 2);
+        assert_eq!(hot[0].symbol, "0x0000aaaadaa446b0");
+        assert_eq!(hot[1].symbol, "__libc_start_main");
     }
 
     #[test]
