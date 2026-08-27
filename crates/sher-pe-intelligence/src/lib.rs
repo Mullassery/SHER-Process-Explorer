@@ -341,6 +341,18 @@ impl ProcessIntelligence {
     pub fn sample_syscalls(&self, pid: Pid, duration: Duration) -> Result<Vec<SyscallStat>> {
         self.adapter.sample_syscalls(pid, duration)
     }
+
+    /// A live, per-event syscall trace of `pid` via real eBPF (`bpftrace`,
+    /// `Tier::DeepTrace`). Explicitly opt-in at the CLI/GUI layer — see
+    /// `sher-pe-cli`'s `--i-accept-the-overhead` gate — since this can be
+    /// far more invasive than `sample_syscalls`'s aggregate counts.
+    pub fn deep_trace(
+        &self,
+        pid: Pid,
+        duration: Duration,
+    ) -> Result<Vec<sher_pe_model::TraceEvent>> {
+        self.adapter.deep_trace(pid, duration)
+    }
 }
 
 #[cfg(test)]

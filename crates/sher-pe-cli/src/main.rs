@@ -59,6 +59,26 @@ enum Command {
         #[arg(long, default_value_t = 3)]
         duration_secs: u64,
     },
+    /// Live, per-event syscall trace via real eBPF (`bpftrace`,
+    /// `Tier::DeepTrace`). Requires `bpftrace`, `timeout`, and `tracefs`
+    /// mounted (standard on real Linux desktops) plus enough privilege
+    /// (`CAP_BPF`/`CAP_SYS_ADMIN`).
+    ///
+    /// This is meaningfully more invasive than `trace`: it captures every
+    /// individual syscall, not a count summary, and a busy process can
+    /// generate hundreds of thousands of events per second. Requires
+    /// explicit opt-in.
+    DeepTrace {
+        pid: Pid,
+        /// How long to sample for.
+        #[arg(long, default_value_t = 3)]
+        duration_secs: u64,
+        /// Required: confirms you understand this can be highly invasive
+        /// under a busy process (potentially hundreds of thousands of
+        /// events per second) and needs elevated privilege.
+        #[arg(long)]
+        i_accept_the_overhead: bool,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -105,6 +125,22 @@ fn main() {
         std::process::exit(1);
     }
 
+    if let Command::DeepTrace {
+        pid,
+        i_accept_the_overhead: false,
+        ..
+    } = cli.command
+    {
+        eprintln!(
+            "sher deep-trace {pid}: refusing to run without --i-accept-the-overhead.\n\n\
+             This attaches real eBPF probes to every syscall the process makes. Under a busy \
+             process this can generate hundreds of thousands of events per second and needs \
+             CAP_BPF/CAP_SYS_ADMIN plus tracefs mounted. Pass --i-accept-the-overhead to confirm \
+             you understand this before it runs."
+        );
+        std::process::exit(2);
+    }
+
     let adapter = LinuxAdapter::new();
     let mut intel = ProcessIntelligence::new(Box::new(adapter));
     if let Err(err) = intel.refresh() {
@@ -124,6 +160,9 @@ fn main() {
         Command::Profile { pid, duration_secs } => {
             render::profile(&intel, pid, duration_secs, cli.json)
         }
+        Command::DeepTrace {
+            pid, duration_secs, ..
+        } => render::deep_trace(&intel, pid, duration_secs, cli.json),
     };
     std::process::exit(exit_code);
 }

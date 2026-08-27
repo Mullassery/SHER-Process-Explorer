@@ -336,6 +336,43 @@ pub fn profile(intel: &ProcessIntelligence, pid: Pid, duration_secs: u64, json: 
     }
 }
 
+/// `sher deep-trace <pid>` — a live, per-event syscall trace via real
+/// eBPF (`bpftrace`, `Tier::DeepTrace`). Blocks for roughly
+/// `duration_secs` (plus a short kill-grace period — see
+/// `sher_pe_telemetry::linux::bpftrace`). Gated behind
+/// `--i-accept-the-overhead` in `main()`, not here.
+pub fn deep_trace(intel: &ProcessIntelligence, pid: Pid, duration_secs: u64, json: bool) -> i32 {
+    if intel.process(pid).is_none() {
+        return not_found_error(pid);
+    }
+    match intel.deep_trace(pid, Duration::from_secs(duration_secs)) {
+        Ok(events) => {
+            print_json_or(json, &events, || {
+                if events.is_empty() {
+                    println!("(no syscalls observed in {duration_secs}s — process may be idle)");
+                    return;
+                }
+                println!("{:>14}  SYSCALL", "+ns");
+                for event in &events {
+                    println!("{:>14}  {}", event.at_ns, event.syscall);
+                }
+                println!(
+                    "({} events shown — a busy process may generate far more than this per second)",
+                    events.len()
+                );
+            });
+            0
+        }
+        Err(err) => {
+            eprintln!("sher: deep trace failed: {err}");
+            eprintln!(
+                "(requires `bpftrace` and `timeout` installed, tracefs mounted, and CAP_BPF/CAP_SYS_ADMIN)"
+            );
+            1
+        }
+    }
+}
+
 fn print_finding(finding: &Finding) {
     println!(
         "[{:?}/{:?}] {}",
