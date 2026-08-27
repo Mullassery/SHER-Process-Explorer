@@ -18,6 +18,7 @@ pub mod scheduler;
 pub mod security;
 pub mod thread;
 pub mod timeline;
+pub mod trace_event;
 pub mod tree;
 
 pub use cgroup::{CgroupInfo, CgroupVersion};
@@ -34,6 +35,7 @@ pub use scheduler::SchedulerStats;
 pub use security::SecurityContext;
 pub use thread::ThreadSnapshot;
 pub use timeline::{TimelineEvent, TimelineEventKind};
+pub use trace_event::TraceEvent;
 pub use tree::{FamilyRollup, ProcessTree};
 
 /// Linux process/thread identifier. Matches the kernel's `pid_t` (`i32`).
