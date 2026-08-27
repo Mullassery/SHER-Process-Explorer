@@ -1,14 +1,32 @@
 //! Live, opt-in deep syscall tracing (`Tier::DeepTrace`) via real eBPF —
 //! `bpftrace` attached to every `syscalls:sys_enter_*` tracepoint, filtered
 //! to one pid. Genuinely different from `strace.rs`'s aggregate counts:
-//! this is a per-event timeline. Requires `bpftrace` installed, `tracefs`
-//! mounted (standard on real Linux desktops, not always true inside a
-//! container), and enough privilege (`CAP_BPF`/`CAP_SYS_ADMIN`).
+//! this is a per-event timeline, with real syscall *names* (not numeric
+//! IDs) coming directly from each tracepoint's own name — deliberately not
+//! a hand-maintained syscall-number-to-name table, which would risk a
+//! silent, hard-to-verify mislabeling (wrong name for a number) on some
+//! architecture; the wildcard tracepoint match sidesteps that risk
+//! entirely by construction.
+//!
+//! Requires `bpftrace` installed, `tracefs` mounted (standard on real
+//! Linux desktops, not always true inside a container), and enough
+//! privilege (`CAP_BPF`/`CAP_SYS_ADMIN`).
 //!
 //! A tight syscall-bound process can generate hundreds of thousands of
 //! events per second — confirmed against a real busy-loop process, not
 //! assumed — so `MAX_EVENTS` caps what's returned regardless of how much
 //! more `bpftrace` actually captured.
+//!
+//! **Known cost**: attaching to ~300 individual tracepoints (one per
+//! syscall) has real per-probe attach/detach overhead. Measured directly,
+//! independent of how busy the traced process is (reproduced against both
+//! a saturating syscall loop and an all-but-idle `sleep`): tearing the
+//! probes back down can take on the order of 10+ seconds *beyond* the
+//! requested `duration`, since kernel-side eBPF detach isn't interruptible
+//! by a signal — not even `SIGKILL` can speed it up once the kernel is
+//! mid-teardown. `deep_trace` will still return correct data every time;
+//! it just won't return in `duration + a small grace`, the way
+//! `sample_hot_functions`/`sample_syscalls` do.
 
 use std::process::Command;
 use std::time::Duration;
@@ -20,11 +38,14 @@ use crate::{Result, TelemetryError};
 const MAX_EVENTS: usize = 2000;
 
 /// How long `timeout` waits after sending `SIGTERM` before escalating to
-/// `SIGKILL`. Required, not optional: measured directly that under a
-/// high-syscall-rate process, `bpftrace`'s userspace polling loop can take
-/// several seconds to notice `SIGTERM` and exit — `timeout <secs>` alone
-/// (the pattern `strace.rs` uses) left a real test run running for ~13s
-/// after a requested 3s duration. `-k` gives a hard wall-clock bound.
+/// `SIGKILL`. This bounds when `SIGKILL` is *sent*, not necessarily when
+/// the process actually dies — see this module's "Known cost" note: under
+/// a saturating workload the kernel-side eBPF detach itself can still take
+/// substantially longer than this grace period, since that teardown work
+/// isn't interruptible by any signal once started. `-k` is still required
+/// (not optional): without it, plain `timeout <secs>` left a real test run
+/// going for ~13s after a requested 3s duration with no forced kill at
+/// all, since `bpftrace` never got around to noticing plain `SIGTERM`.
 const KILL_GRACE_SECS: u64 = 2;
 
 pub fn deep_trace(pid: Pid, duration: Duration) -> Result<Vec<TraceEvent>> {
@@ -53,12 +74,18 @@ pub fn deep_trace(pid: Pid, duration: Duration) -> Result<Vec<TraceEvent>> {
         source,
     })?;
 
-    // 124 = `timeout`'s SIGTERM fired; 137 = its follow-up SIGKILL fired.
-    // Both mean "the sample ran for its requested duration," not a
-    // failure — the same acceptance `strace.rs` gives 124, extended here
-    // to also accept the forced-kill case this module specifically needs.
-    let code = output.status.code();
-    let sample_completed_as_expected = code == Some(124) || code == Some(137);
+    // 124 = `timeout`'s own clean exit after SIGTERM fired. When `-k`'s
+    // grace period elapses and `timeout` escalates to SIGKILL, the
+    // process `Command` waited on can itself end up terminated *by*
+    // signal 9 rather than exiting with code 137 — confirmed directly:
+    // `ExitStatus::code()` returns `None` in that case (unlike a shell's
+    // `$?`, which reports 128+signal), so checking only `.code()` against
+    // 137 silently never matched and every forced-kill sample was treated
+    // as a hard failure. Both outcomes mean "the sample ran for its
+    // requested duration," not a failure.
+    use std::os::unix::process::ExitStatusExt;
+    let sample_completed_as_expected =
+        output.status.code() == Some(124) || output.status.signal() == Some(9);
     if !output.status.success() && !sample_completed_as_expected {
         return Err(TelemetryError::Io {
             path: "bpftrace".to_string(),

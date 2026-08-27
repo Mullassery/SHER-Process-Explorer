@@ -115,14 +115,24 @@ Submodules:
   stack-sampling profile, parsed into `HotFunction` rows
 - `linux::strace` — `strace -c` (bounded by `timeout`) for a syscall-count
   summary, parsed into `SyscallStat` rows
+- `linux::bpftrace` — real eBPF: `bpftrace` attached to every
+  `syscalls:sys_enter_*` tracepoint (filtered by pid) for a live per-event
+  syscall timeline, parsed into `TraceEvent` rows. Bounded with
+  `timeout -k <grace> <duration>`, not plain `timeout` — `bpftrace`'s
+  userspace loop can defer noticing `SIGTERM` for many seconds under a
+  busy process. Detaching the ~300 attached probes still takes real,
+  non-interruptible kernel-side time regardless (observed 10–15s beyond
+  the requested duration, independent of target activity) — documented in
+  the module rather than papered over.
 
 Tiered collection (`Tier::{Continuous, ShortSample, Profile, DeepTrace}`)
-exists as an enum so the seam is real. `Continuous` (Level 1, cheap —
-includes `scheduler_stats`), `ShortSample` (Level 2, `sample_syscalls`),
-and `Profile` (Level 3, `sample_hot_functions`) are implemented for
-`LinuxAdapter`. `DeepTrace` (Level 4, eBPF — Phase 3) is not; an adapter
-that doesn't override `sample_hot_functions`/`sample_syscalls` returns a
-typed `TelemetryError::Unsupported` for those tiers too, by default.
+exists as an enum so the seam is real, and all four tiers are implemented
+for `LinuxAdapter`: `Continuous` (Level 1, cheap — includes
+`scheduler_stats`), `ShortSample` (Level 2, `sample_syscalls`), `Profile`
+(Level 3, `sample_hot_functions`), and `DeepTrace` (Level 4,
+`deep_trace`). An adapter that doesn't override a tier's method (e.g. a
+future `SherKernelAdapter`) returns a typed `TelemetryError::Unsupported`
+for it, by default.
 
 ## `sher-pe-intelligence`
 
@@ -174,6 +184,7 @@ sher why <pid> <cpu|memory|network|disk>
 sher investigate <pid>
 sher trace <pid>                         # strace -c syscall breakdown (Tier::ShortSample)
 sher profile <pid>                       # perf hot-function sample (Tier::Profile)
+sher deep-trace <pid> --i-accept-the-overhead   # bpftrace live syscall timeline (Tier::DeepTrace)
 ```
 
 `main()` checks `cfg!(target_os = "linux")` and exits with a clear error

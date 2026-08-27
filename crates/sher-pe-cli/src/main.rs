@@ -66,8 +66,10 @@ enum Command {
     ///
     /// This is meaningfully more invasive than `trace`: it captures every
     /// individual syscall, not a count summary, and a busy process can
-    /// generate hundreds of thousands of events per second. Requires
-    /// explicit opt-in.
+    /// generate hundreds of thousands of events per second. It can also
+    /// run noticeably longer than --duration-secs before returning —
+    /// tearing down ~300 eBPF probes takes real kernel-side time that no
+    /// signal can shorten. Requires explicit opt-in.
     DeepTrace {
         pid: Pid,
         /// How long to sample for.
@@ -135,8 +137,10 @@ fn main() {
             "sher deep-trace {pid}: refusing to run without --i-accept-the-overhead.\n\n\
              This attaches real eBPF probes to every syscall the process makes. Under a busy \
              process this can generate hundreds of thousands of events per second and needs \
-             CAP_BPF/CAP_SYS_ADMIN plus tracefs mounted. Pass --i-accept-the-overhead to confirm \
-             you understand this before it runs."
+             CAP_BPF/CAP_SYS_ADMIN plus tracefs mounted. It can also take noticeably longer than \
+             --duration-secs to return — tearing down ~300 probes takes real kernel-side time \
+             no signal can shorten (observed ~10-15s beyond the requested duration). Pass \
+             --i-accept-the-overhead to confirm you understand this before it runs."
         );
         std::process::exit(2);
     }
