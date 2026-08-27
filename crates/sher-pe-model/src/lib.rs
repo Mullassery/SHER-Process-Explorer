@@ -5,6 +5,7 @@
 //! GUI) gets `--json` output for free without bespoke serialization code.
 
 pub mod cgroup;
+pub mod container;
 pub mod cpu;
 pub mod evidence;
 pub mod files;
@@ -22,6 +23,7 @@ pub mod trace_event;
 pub mod tree;
 
 pub use cgroup::{CgroupInfo, CgroupVersion};
+pub use container::{ContainerInfo, ContainerRuntime};
 pub use cpu::CpuStats;
 pub use evidence::{Confidence, Evidence, Finding, Severity};
 pub use files::{FileKind, OpenFile};
