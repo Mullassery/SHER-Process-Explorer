@@ -2,6 +2,7 @@
 //! built entirely on the hand-rolled parsers in `procfs`.
 
 pub mod affinity;
+pub mod bpftrace;
 pub mod kernel_log;
 pub mod perf;
 pub mod procfs;
@@ -13,7 +14,7 @@ use std::path::{Path, PathBuf};
 use sher_pe_model::{
     CgroupInfo, CpuStats, DiskIoStats, HotFunction, NamespaceInfo, NetworkConnection, OpenFile,
     Pid, ProcessSnapshot, ProcessState, SchedulerStats, SecurityContext, SyscallStat,
-    ThreadSnapshot,
+    ThreadSnapshot, TraceEvent,
 };
 
 use crate::{Result, TelemetryAdapter};
@@ -156,6 +157,10 @@ impl TelemetryAdapter for LinuxAdapter {
 
     fn sample_syscalls(&self, pid: Pid, duration: std::time::Duration) -> Result<Vec<SyscallStat>> {
         strace::sample_syscalls(pid, duration)
+    }
+
+    fn deep_trace(&self, pid: Pid, duration: std::time::Duration) -> Result<Vec<TraceEvent>> {
+        bpftrace::deep_trace(pid, duration)
     }
 }
 

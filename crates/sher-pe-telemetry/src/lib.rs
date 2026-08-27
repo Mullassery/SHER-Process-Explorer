@@ -14,19 +14,17 @@ use std::time::Duration;
 
 use sher_pe_model::{
     CgroupInfo, DiskIoStats, HotFunction, NamespaceInfo, NetworkConnection, OpenFile, Pid,
-    ProcessSnapshot, SchedulerStats, SecurityContext, SyscallStat, ThreadSnapshot,
+    ProcessSnapshot, SchedulerStats, SecurityContext, SyscallStat, ThreadSnapshot, TraceEvent,
 };
 
 pub type Result<T> = std::result::Result<T, TelemetryError>;
 
 /// Collection depth, from cheap-and-continuous to expensive-and-opt-in.
-/// `Continuous`, `ShortSample` (`strace -c`), and `Profile` (`perf`) are
-/// implemented for `LinuxAdapter` (Phases 0 and 2). `DeepTrace` (eBPF,
-/// Phase 3) is not — see `CLAUDE.md`'s "no fake stubs" rule: an
-/// unimplemented tier is an honest `TelemetryError::Unsupported`, not a
-/// silent empty result. An adapter that doesn't override
-/// `sample_hot_functions`/`sample_syscalls` returns `Unsupported` for
-/// those tiers too, by default.
+/// All four tiers are implemented for `LinuxAdapter` (Phases 0–3) — see
+/// `CLAUDE.md`'s "no fake stubs" rule: an adapter that doesn't override a
+/// tier's method (e.g. a future `SherKernelAdapter` that can't support
+/// `bpftrace`) returns a typed `TelemetryError::Unsupported` for it, never
+/// a silent empty result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tier {
     /// Level 1 — cheap enough to sample continuously (reading `/proc`
@@ -38,7 +36,9 @@ pub enum Tier {
     /// Level 3 — explicit stack-sampling profile (`perf record`/`perf
     /// report`).
     Profile,
-    /// Level 4 — deep tracing (eBPF/`perf` syscall/I/O/network tracing).
+    /// Level 4 — deep, per-event tracing (`bpftrace` attached to real
+    /// eBPF tracepoints). Opt-in and overhead-warned at the CLI/GUI layer,
+    /// not silently run.
     DeepTrace,
 }
 
@@ -97,5 +97,13 @@ pub trait TelemetryAdapter: Send + Sync {
     /// `Tier::ShortSample` — a short syscall-count sample via `strace -c`.
     fn sample_syscalls(&self, _pid: Pid, _duration: Duration) -> Result<Vec<SyscallStat>> {
         Err(TelemetryError::Unsupported(Tier::ShortSample))
+    }
+
+    /// `Tier::DeepTrace` — a live, per-event syscall trace via real eBPF
+    /// (`bpftrace`). Opt-in and overhead-warned at the CLI/GUI layer,
+    /// since a busy process can generate hundreds of thousands of events
+    /// per second (confirmed against a real workload, not assumed).
+    fn deep_trace(&self, _pid: Pid, _duration: Duration) -> Result<Vec<TraceEvent>> {
+        Err(TelemetryError::Unsupported(Tier::DeepTrace))
     }
 }
