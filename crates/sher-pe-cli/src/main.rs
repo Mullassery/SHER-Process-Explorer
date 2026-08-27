@@ -41,12 +41,24 @@ enum Command {
     },
     /// Run every "why" rule against one process.
     Investigate { pid: Pid },
-    /// Level 3 stack-sampling profile — not built yet (see `ROADMAP.md`
-    /// Phase 2).
-    Trace { pid: Pid },
-    /// Level 4 deep tracing (eBPF/perf) — not built yet (see
-    /// `ROADMAP.md` Phase 3).
-    Profile { pid: Pid },
+    /// Syscall-count breakdown via `strace -c` (`Tier::ShortSample`).
+    /// Requires `strace` and `timeout` installed, and ptrace permission
+    /// for this pid (same-uid or `CAP_SYS_PTRACE`).
+    Trace {
+        pid: Pid,
+        /// How long to sample for.
+        #[arg(long, default_value_t = 3)]
+        duration_secs: u64,
+    },
+    /// Stack-sampling hot-function profile via `perf` (`Tier::Profile`).
+    /// Requires `perf` installed and enough privilege
+    /// (`CAP_PERFMON`/`perf_event_paranoid`).
+    Profile {
+        pid: Pid,
+        /// How long to sample for.
+        #[arg(long, default_value_t = 3)]
+        duration_secs: u64,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -76,22 +88,6 @@ fn main() {
         std::process::exit(1);
     }
 
-    match cli.command {
-        Command::Trace { pid } => {
-            eprintln!(
-                "sher trace {pid}: requires Level 3 (stack-sampling profile) tracing, not yet built. See ROADMAP.md Phase 2."
-            );
-            std::process::exit(2);
-        }
-        Command::Profile { pid } => {
-            eprintln!(
-                "sher profile {pid}: requires Level 4 (eBPF/perf) deep tracing, not yet built. See ROADMAP.md Phase 3."
-            );
-            std::process::exit(2);
-        }
-        _ => {}
-    }
-
     let adapter = LinuxAdapter::new();
     let mut intel = ProcessIntelligence::new(Box::new(adapter));
     if let Err(err) = intel.refresh() {
@@ -105,7 +101,12 @@ fn main() {
         Command::Inspect { pid } => render::inspect(&intel, pid, cli.json),
         Command::Why { pid, aspect } => render::why(&intel, pid, aspect, cli.json),
         Command::Investigate { pid } => render::investigate(&intel, pid, cli.json),
-        Command::Trace { .. } | Command::Profile { .. } => unreachable!("handled above"),
+        Command::Trace { pid, duration_secs } => {
+            render::trace(&intel, pid, duration_secs, cli.json)
+        }
+        Command::Profile { pid, duration_secs } => {
+            render::profile(&intel, pid, duration_secs, cli.json)
+        }
     };
     std::process::exit(exit_code);
 }

@@ -1,6 +1,8 @@
 //! Human-readable + `--json` rendering for every `sher` subcommand. Each
 //! function returns the process exit code the caller should use.
 
+use std::time::Duration;
+
 use sher_pe_intelligence::ProcessIntelligence;
 use sher_pe_model::{Finding, Pid, ProcessSnapshot};
 
@@ -117,6 +119,7 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
             connections: Vec<sher_pe_model::NetworkConnection>,
             security: Option<sher_pe_model::SecurityContext>,
             systemd_unit: Option<String>,
+            scheduler_stats: Option<sher_pe_model::SchedulerStats>,
         }
         let inspection = Inspection {
             process: process.clone(),
@@ -125,6 +128,7 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
             connections: intel.connections(pid).unwrap_or_default(),
             security: intel.security(pid).ok(),
             systemd_unit: intel.systemd_unit(pid).ok().flatten(),
+            scheduler_stats: intel.scheduler_stats(pid).ok(),
         };
         print_json_or(json, &inspection, || {});
         return 0;
@@ -162,6 +166,16 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
     println!("percent:  {:.1}%", process.cpu.percent);
     println!("utime:    {} ticks", process.cpu.utime_ticks);
     println!("stime:    {} ticks", process.cpu.stime_ticks);
+    if let Ok(sched) = intel.scheduler_stats(pid) {
+        print!(
+            "sched:    on-cpu={}ns wait={}ns",
+            sched.on_cpu_ns, sched.wait_ns
+        );
+        match sched.wait_ratio_percent() {
+            Some(ratio) => println!(" ({ratio:.1}% waiting)"),
+            None => println!(),
+        }
+    }
 
     println!("\n=== Threads ({}) ===", process.thread_count);
     match intel.threads(pid) {
@@ -250,6 +264,76 @@ pub fn investigate(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
         }
     });
     0
+}
+
+/// `sher trace <pid>` — a short syscall-count sample via `strace -c`
+/// (`Tier::ShortSample`). Blocks for roughly `duration_secs`.
+pub fn trace(intel: &ProcessIntelligence, pid: Pid, duration_secs: u64, json: bool) -> i32 {
+    if intel.process(pid).is_none() {
+        return not_found_error(pid);
+    }
+    match intel.sample_syscalls(pid, Duration::from_secs(duration_secs)) {
+        Ok(mut stats) => {
+            stats.sort_by_key(|s| std::cmp::Reverse(s.calls));
+            print_json_or(json, &stats, || {
+                if stats.is_empty() {
+                    println!("(no syscalls observed in {duration_secs}s — process may be idle)");
+                    return;
+                }
+                println!(
+                    "{:>8} {:>8} {:>8} {:>10}  SYSCALL",
+                    "CALLS", "ERRORS", "TIME%", "SECONDS"
+                );
+                for stat in &stats {
+                    println!(
+                        "{:>8} {:>8} {:>8.2} {:>10.6}  {}",
+                        stat.calls, stat.errors, stat.time_percent, stat.seconds, stat.name
+                    );
+                }
+            });
+            0
+        }
+        Err(err) => {
+            eprintln!("sher: syscall trace failed: {err}");
+            eprintln!(
+                "(requires `strace` and `timeout` installed, and ptrace permission for this pid)"
+            );
+            1
+        }
+    }
+}
+
+/// `sher profile <pid>` — a short stack-sampling profile via `perf`
+/// (`Tier::Profile`). Blocks for roughly `duration_secs`.
+pub fn profile(intel: &ProcessIntelligence, pid: Pid, duration_secs: u64, json: bool) -> i32 {
+    if intel.process(pid).is_none() {
+        return not_found_error(pid);
+    }
+    match intel.sample_hot_functions(pid, Duration::from_secs(duration_secs)) {
+        Ok(hot_functions) => {
+            print_json_or(json, &hot_functions, || {
+                if hot_functions.is_empty() {
+                    println!(
+                        "(no samples landed anywhere in {duration_secs}s — process may be idle)"
+                    );
+                    return;
+                }
+                println!("{:>8}  MODULE  SYMBOL", "OVERHEAD");
+                for hot in &hot_functions {
+                    println!(
+                        "{:>7.2}%  {:<8}  {}",
+                        hot.overhead_percent, hot.module, hot.symbol
+                    );
+                }
+            });
+            0
+        }
+        Err(err) => {
+            eprintln!("sher: profile failed: {err}");
+            eprintln!("(requires `perf` installed and sufficient privilege — CAP_PERFMON/perf_event_paranoid)");
+            1
+        }
+    }
 }
 
 fn print_finding(finding: &Finding) {

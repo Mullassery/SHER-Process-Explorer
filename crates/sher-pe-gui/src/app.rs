@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use sher_pe_intelligence::ProcessIntelligence;
 use sher_pe_investigation as investigation;
-use sher_pe_model::{Finding, Pid};
+use sher_pe_model::{Finding, HotFunction, Pid, SyscallStat};
 
 use crate::treeview::flatten_tree;
 
@@ -12,6 +12,13 @@ use crate::treeview::flatten_tree;
 /// this also controls how quickly CPU% becomes meaningful after opening
 /// the app (the first tick always shows 0%).
 const REFRESH_INTERVAL: Duration = Duration::from_secs(2);
+
+/// How long a `perf`/`strace` sample runs when the user clicks "Profile"
+/// or "Trace syscalls." Both calls block the UI thread for roughly this
+/// long — there's no background-thread sampling yet (a real future
+/// refinement, not faked here), so the button labels say so up front
+/// rather than the window silently freezing with no explanation.
+const SAMPLE_DURATION: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DetailTab {
@@ -73,6 +80,8 @@ pub struct SherApp {
     selected: Option<Pid>,
     selected_tab: DetailTab,
     cached_finding: Option<CachedFinding>,
+    cached_hot_functions: Option<(Pid, Result<Vec<HotFunction>, String>)>,
+    cached_syscalls: Option<(Pid, Result<Vec<SyscallStat>, String>)>,
 }
 
 impl SherApp {
@@ -86,6 +95,8 @@ impl SherApp {
             selected: None,
             selected_tab: DetailTab::Overview,
             cached_finding: None,
+            cached_hot_functions: None,
+            cached_syscalls: None,
         };
         app.refresh();
         app
@@ -196,6 +207,8 @@ impl SherApp {
                 if ui.selectable_label(is_selected, label).clicked() {
                     self.selected = Some(row.pid);
                     self.cached_finding = None;
+                    self.cached_hot_functions = None;
+                    self.cached_syscalls = None;
                 }
             });
         }
@@ -337,6 +350,18 @@ impl SherApp {
             ui.label("System ticks");
             ui.label(process.cpu.stime_ticks.to_string());
             ui.end_row();
+            if let Ok(sched) = self.intel.scheduler_stats(pid) {
+                ui.label("On CPU / waiting");
+                let wait_label = match sched.wait_ratio_percent() {
+                    Some(ratio) => format!(
+                        "{}ns / {}ns ({ratio:.1}% waiting)",
+                        sched.on_cpu_ns, sched.wait_ns
+                    ),
+                    None => format!("{}ns / {}ns", sched.on_cpu_ns, sched.wait_ns),
+                };
+                ui.label(wait_label);
+                ui.end_row();
+            }
         });
         ui.separator();
         if ui.button("Why?").clicked() {
@@ -344,6 +369,107 @@ impl SherApp {
             let _ = self.finding_for(DetailTab::Cpu, pid);
         }
         draw_finding_if_cached(ui, &self.cached_finding, DetailTab::Cpu, pid);
+
+        ui.separator();
+        ui.weak(format!(
+            "Sampling below blocks this window for ~{}s while it runs (perf/strace are shelled out to, not backgrounded yet).",
+            SAMPLE_DURATION.as_secs()
+        ));
+        ui.horizontal(|ui| {
+            if ui
+                .button(format!("Profile ({}s, perf)", SAMPLE_DURATION.as_secs()))
+                .clicked()
+            {
+                let result = self
+                    .intel
+                    .sample_hot_functions(pid, SAMPLE_DURATION)
+                    .map_err(|e| e.to_string());
+                self.cached_hot_functions = Some((pid, result));
+            }
+            if ui
+                .button(format!(
+                    "Trace syscalls ({}s, strace)",
+                    SAMPLE_DURATION.as_secs()
+                ))
+                .clicked()
+            {
+                let result = self
+                    .intel
+                    .sample_syscalls(pid, SAMPLE_DURATION)
+                    .map_err(|e| e.to_string());
+                self.cached_syscalls = Some((pid, result));
+            }
+        });
+
+        if let Some((cached_pid, result)) = &self.cached_hot_functions {
+            if *cached_pid == pid {
+                ui.label("Hot functions:");
+                match result {
+                    Ok(hot) if hot.is_empty() => {
+                        ui.weak("(no samples landed anywhere — process may be idle)");
+                    }
+                    Ok(hot) => {
+                        egui::Grid::new("hotfn_grid")
+                            .num_columns(3)
+                            .striped(true)
+                            .show(ui, |ui| {
+                                ui.strong("Overhead");
+                                ui.strong("Module");
+                                ui.strong("Symbol");
+                                ui.end_row();
+                                for h in hot {
+                                    ui.label(format!("{:.2}%", h.overhead_percent));
+                                    ui.label(&h.module);
+                                    ui.label(&h.symbol);
+                                    ui.end_row();
+                                }
+                            });
+                    }
+                    Err(err) => {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(220, 160, 60),
+                            format!("profile failed: {err}"),
+                        );
+                    }
+                }
+            }
+        }
+
+        if let Some((cached_pid, result)) = &self.cached_syscalls {
+            if *cached_pid == pid {
+                ui.label("Syscall breakdown:");
+                match result {
+                    Ok(stats) if stats.is_empty() => {
+                        ui.weak("(no syscalls observed — process may be idle)");
+                    }
+                    Ok(stats) => {
+                        egui::Grid::new("syscall_grid")
+                            .num_columns(4)
+                            .striped(true)
+                            .show(ui, |ui| {
+                                ui.strong("Calls");
+                                ui.strong("Errors");
+                                ui.strong("Time%");
+                                ui.strong("Syscall");
+                                ui.end_row();
+                                for s in stats {
+                                    ui.label(s.calls.to_string());
+                                    ui.label(s.errors.to_string());
+                                    ui.label(format!("{:.2}%", s.time_percent));
+                                    ui.label(&s.name);
+                                    ui.end_row();
+                                }
+                            });
+                    }
+                    Err(err) => {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(220, 160, 60),
+                            format!("trace failed: {err}"),
+                        );
+                    }
+                }
+            }
+        }
     }
 
     fn draw_threads(&mut self, ui: &mut egui::Ui, pid: Pid) {
