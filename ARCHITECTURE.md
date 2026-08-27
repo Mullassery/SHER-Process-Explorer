@@ -3,9 +3,10 @@
 ## Layering
 
 ```
-sher-pe-cli
-    │  depends on
-    ▼
+sher-pe-cli   sher-pe-gui
+    │              │  depend on
+    └──────┬───────┘
+           ▼
 sher-pe-investigation
     │  depends on
     ▼
@@ -27,10 +28,10 @@ pass-throughs for exactly the on-demand reads `why_cpu`/`why_network`/
 `why_disk` need, alongside the tracked history `why_memory` uses); it only
 takes `sher-pe-telemetry` as a dev-dependency, to build a
 `MockTelemetryAdapter`-backed `ProcessIntelligence` in its own tests.
-`sher-pe-cli` is
-the only crate allowed to depend on both `sher-pe-intelligence` and
-`sher-pe-investigation` directly; a future GUI crate would sit at the same
-level, as a sibling of `sher-pe-cli`, not a consumer of it.
+`sher-pe-cli` and `sher-pe-gui` are the only crates allowed to depend on
+both `sher-pe-intelligence` and `sher-pe-investigation` directly — siblings
+at the same level, calling the exact same API, never one depending on the
+other.
 
 ## `sher-pe-model`
 
@@ -127,7 +128,7 @@ avoid misattributing history across PID reuse.
 - `tree(&self) -> ProcessTree`, `family_rollup(&self, pid) -> FamilyRollup`
 - `process(&self, pid)`, `history(&self, pid)`, `timeline(&self, pid)`
 
-This is the single shared API both `sher-pe-cli` and any future GUI call —
+This is the single shared API both `sher-pe-cli` and `sher-pe-gui` call —
 no telemetry-format knowledge leaks past this layer.
 
 ## `sher-pe-investigation`
@@ -165,6 +166,24 @@ sher trace <pid> / sher profile <pid>    # honest errors: Level 3/4 tracing not 
 
 `main()` checks `cfg!(target_os = "linux")` and exits with a clear error
 message on any other OS — no silent no-op.
+
+## `sher-pe-gui`
+
+`egui`/`eframe`-based, binary name `sher-gui`. Same data, same calls as the
+CLI — `treeview::flatten_tree` (pure, unit-tested) turns `ProcessTree` plus
+expand/collapse + search-filter state into display rows; `SherApp::ui`
+renders a process tree on the left and, for the selected pid, tabbed detail
+(Overview/Memory/CPU/Threads/Files/Network/Disk I/O/Security) on the right,
+with `Why?` buttons on Memory/CPU/Network/Disk calling straight into
+`sher-pe-investigation`.
+
+Unlike the CLI, `main()` does **not** refuse to run off Linux — it still
+opens the window (there's real value in tweaking the UI without a Linux
+machine on hand) and surfaces a failed `refresh()` as an in-window banner
+instead. `SherApp` re-runs `intel.refresh()` every 2 seconds
+(`REFRESH_INTERVAL`) so CPU% — computed from tick deltas across two ticks —
+becomes meaningful shortly after the window opens, rather than staying at
+0% forever the way a one-shot CLI invocation would.
 
 ## Risk notes
 

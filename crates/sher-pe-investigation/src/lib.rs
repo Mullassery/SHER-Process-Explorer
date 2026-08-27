@@ -192,7 +192,7 @@ pub fn why_memory(intel: &ProcessIntelligence, pid: Pid) -> Finding {
             Severity::Info,
             "Memory usage",
             format!(
-                "{} (pid {pid})'s RSS changed {growth_percent:.1}% over the last {window_secs}s (below the {}%/{}, m threshold, or too little history yet)",
+                "{} (pid {pid})'s RSS changed {growth_percent:.1}% over the last {window_secs}s (below the {}%/{}m threshold, or too little history yet)",
                 process.name,
                 DEFAULT_GROWTH_THRESHOLD_PERCENT,
                 DEFAULT_GROWTH_WINDOW_SECS / 60

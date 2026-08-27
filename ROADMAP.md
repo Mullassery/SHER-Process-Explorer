@@ -13,14 +13,25 @@ dependency.
 
 *Success bar: everything answerable from the CLI alone.*
 
-## Phase 1 — Desktop UI
+## Phase 1 — Desktop UI ✅
 
-A GUI consuming the *same* `sher-pe-intelligence` / `sher-pe-investigation`
-APIs the CLI uses — no new logic, just presentation: hierarchical process
-explorer, drill-down detail tabs, memory/CPU breakdown visuals, `[Why?]`
-buttons wired to the existing investigation engine. Toolkit choice (GTK4/
-libadwaita to plug into Aurora's design system vs. Tauri/egui) deferred to
-when this phase starts.
+A GUI (`sher-pe-gui`, binary `sher-gui`) consuming the *same*
+`sher-pe-intelligence` / `sher-pe-investigation` APIs the CLI uses — no new
+logic, just presentation: hierarchical process explorer with a
+collapse/expand + search-filterable tree (`treeview.rs`, unit-tested
+independently of any rendering), drill-down detail tabs (Overview, Memory,
+CPU, Threads, Files, Network, Disk I/O, Security), and `Why?` buttons on
+Memory/CPU/Network/Disk wired directly to the existing investigation
+engine. Toolkit: **egui/eframe** (pure Rust, immediate-mode) — chosen over
+GTK4/libadwaita and Tauri for a fast native dev loop on any OS with no
+system library bindings; the tradeoff is not plugging directly into
+Aurora's GTK4/libadwaita design system, which stays open for a future
+reskin if the ecosystem needs it. Auto-refreshes every 2s so CPU% (which
+needs two ticks to compute) becomes meaningful shortly after opening.
+
+Verified with a real screenshot (via Xvfb + `import` in a Linux container)
+showing live real `/proc` data end-to-end: the process tree, a family
+rollup, and a `why_memory` `Finding` with real evidence, not a mock.
 
 ## Phase 2 — Deeper CPU/thread intelligence (Level 2–3 tracing)
 

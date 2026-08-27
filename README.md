@@ -10,7 +10,9 @@ Part of the same personal ecosystem as [Aurora](https://github.com/Mullassery/au
 (look), Himalayas (feel), [SHER Kernel](https://github.com/Mullassery/SHER-KERNEL)
 (work differently), and TinyBridge (run safer).
 
-## What's here (Phase 0 — engine + CLI)
+## What's here
+
+**Phase 0 — engine + CLI:**
 
 - Hand-rolled `/proc` parsing (`sher-pe-telemetry`) — no external procfs-wrapper
   dependency, full control over exact fields, fixture-tested so the parser
@@ -22,26 +24,33 @@ Part of the same personal ecosystem as [Aurora](https://github.com/Mullassery/au
   (`sher-pe-investigation`) that produces `Finding`s backed by `Evidence` —
   structurally unable to claim more certainty than the data supports (see
   `Confidence::{Observed,Correlated,Likely,Unknown}`).
-- A `sher` CLI (`sher-pe-cli`) that is the *only* consumer of the above this
-  pass — the same API surface a future GUI will call, so there is never
-  separate logic for CLI vs. GUI.
+- A `sher` CLI (`sher-pe-cli`).
+
+**Phase 1 — desktop UI:**
+
+- `sher-gui` (`sher-pe-gui`), an `egui`/`eframe` desktop app calling the
+  *exact same* `sher-pe-intelligence`/`sher-pe-investigation` APIs the CLI
+  uses — a process tree with search/collapse, tabbed detail per process,
+  and `Why?` buttons wired straight into the investigation engine. No
+  separate logic lives here, only presentation.
 
 See `ARCHITECTURE.md` for the full crate-by-crate design and `ROADMAP.md` for
-the phased plan beyond this MVP (desktop UI, deep tracing, containers, log
-correlation, an optional AI narrative layer, packaging).
+the phased plan beyond this (deep tracing, containers, log correlation, an
+optional AI narrative layer, packaging).
 
 ## Non-goals this pass
 
-No desktop UI yet, no eBPF/perf/strace integration, no persistent history
-storage (in-memory only), no LLM-backed narrative generation. `sher trace`
-and `sher profile` are honest `Unsupported` errors, not silent no-ops — see
-the "no fake stubs" note in `CLAUDE.md`.
+No eBPF/perf/strace integration, no persistent history storage (in-memory
+only), no LLM-backed narrative generation. `sher trace` and `sher profile`
+are honest `Unsupported` errors, not silent no-ops — see the "no fake
+stubs" note in `CLAUDE.md`.
 
 ## Building
 
-Runs on Linux only (`main()` checks `cfg!(target_os = "linux")` and exits
-with a clear error elsewhere). Parser and model unit tests are fixture-based
-and run on any OS:
+The CLI runs on Linux only (`main()` checks `cfg!(target_os = "linux")` and
+exits with a clear error elsewhere); the GUI still opens on any OS and
+surfaces the same failure as an in-window banner instead. Parser and model
+unit tests are fixture-based and run on any OS:
 
 ```sh
 cargo build --workspace

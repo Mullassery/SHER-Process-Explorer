@@ -1,0 +1,20 @@
+[package]
+name = "sher-pe-gui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Phase 1 desktop UI for SHER Process Explorer — the same sher-pe-intelligence/sher-pe-investigation APIs the CLI uses, presented visually."
+
+[[bin]]
+name = "sher-gui"
+path = "src/main.rs"
+
+[dependencies]
+sher-pe-model.workspace = true
+sher-pe-telemetry.workspace = true
+sher-pe-intelligence.workspace = true
+sher-pe-investigation.workspace = true
+egui.workspace = true
+eframe.workspace = true

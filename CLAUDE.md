@@ -47,13 +47,14 @@ crates/
 ├── sher-pe-telemetry/       # TelemetryAdapter trait + Linux implementation
 ├── sher-pe-intelligence/    # tree, rollups, history, timeline
 ├── sher-pe-investigation/   # rule-based "why" evidence engine
-└── sher-pe-cli/             # `sher` binary — the only consumer for now
+├── sher-pe-cli/             # `sher` binary
+└── sher-pe-gui/             # `sher-gui` binary (egui/eframe) — same APIs, different presentation
 ```
 
-Dependency direction is strictly top-to-bottom: `sher-pe-cli` depends on
-`sher-pe-intelligence` + `sher-pe-investigation`, which depend on
-`sher-pe-telemetry`, which depends on `sher-pe-model`. Nothing depends
-upward.
+Dependency direction is strictly top-to-bottom: `sher-pe-cli` and
+`sher-pe-gui` each depend on `sher-pe-intelligence` + `sher-pe-investigation`,
+which depend on `sher-pe-telemetry`, which depends on `sher-pe-model`.
+Nothing depends upward, and the CLI and GUI never depend on each other.
 
 ## Testing discipline
 
@@ -70,6 +71,12 @@ upward.
   hand-built `MockTelemetryAdapter` feeding multi-tick synthetic snapshots,
   so growth-detection thresholds are deterministic and don't touch real
   `/proc`.
+- `sher-pe-gui`: the one piece of real logic (`treeview::flatten_tree` —
+  expand/collapse + search-filter behavior) is kept free of any `egui`
+  dependency and unit-tested directly, the same way `sher-pe-model::tree`
+  is. Actual rendering isn't unit-testable, so it's verified by running the
+  compiled binary against a real X server (Xvfb) with real `/proc` data and
+  visually inspecting a screenshot — not just "it compiles."
 
 ## Degrade, never panic
 
