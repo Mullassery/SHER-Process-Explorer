@@ -113,11 +113,38 @@ correct data; it just doesn't return within `duration + a small grace`,
 unlike `sample_hot_functions`/`sample_syscalls`. The CLI's pre-run warning
 says so explicitly.
 
-## Phase 4 — Containers & namespaces as first-class objects
+## Phase 4 — Containers & namespaces as first-class objects ✅
 
-Docker/Podman/containerd awareness layered on top of the cgroup/namespace
-data Phase 0 already collects — mapping container ↔ host process ↔ cgroup ↔
-namespace without requiring the user to understand Linux internals.
+`container_info` maps a process's cgroup path (already collected since
+Phase 0) to the container that owns it: Docker and Podman get full
+metadata (name, image, status) via `docker`/`podman inspect --format`;
+containerd (CRI) containers are detected (runtime + id) but not enriched
+— no single universal inspect CLI exists for it the way Docker/Podman
+each have one, an honest scope limit rather than a stub. Shown in `sher
+inspect`'s Overview section, its `--json` output, and the GUI's Overview
+tab — the same `ProcessIntelligence::container_info` call, no separate
+logic.
+
+Detection is pure cgroup-path pattern matching against the real
+`cgroupfs`- and `systemd`-driver conventions each runtime's own source
+code emits (`/docker/<id>`, `docker-<id>.scope`, `libpod-<id>.scope`,
+`cri-containerd-<id>.scope`). The `cgroupfs` pattern was confirmed
+directly against a real running container; the others are stable string
+constants (not numeric values at risk of a transcription error — a
+lesson carried over from Phase 3's syscall-table decision). A path
+matching none of these is `None`, never a wrong or fabricated answer.
+
+**Verified end-to-end on real Linux**: built a real Docker daemon +
+container inside a privileged test container, ran `sher inspect` against
+its actual init process, and confirmed the CLI, `--json`, and a GUI
+screenshot all correctly show `Container: Docker testctr (image:
+ubuntu:22.04, status: running)`. That testing caught a real bug in the
+test data itself, not the shipped code: a hand-copied 64-hex-character
+container id was transcribed one character short in a unit test,
+silently failing every pattern-match test until length validation caught
+it — exactly the transcription risk that motivated avoiding a hand-built
+syscall-number table in Phase 3, now validated as a real, recurring risk
+worth designing around.
 
 ## Phase 5 — Log correlation & crash timeline UI
 

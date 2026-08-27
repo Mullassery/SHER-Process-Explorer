@@ -124,6 +124,12 @@ Submodules:
   non-interruptible kernel-side time regardless (observed 10–15s beyond
   the requested duration, independent of target activity) — documented in
   the module rather than papered over.
+- `linux::container` — maps a cgroup path to `(runtime, id)` via pure
+  string matching (`/docker/<id>`, `docker-<id>.scope`,
+  `libpod-<id>.scope`, `cri-containerd-<id>.scope`), then enriches with
+  `docker`/`podman inspect --format` when possible. containerd is
+  detected but not enriched (no single universal inspect CLI). Confirmed
+  end-to-end against a real running Docker container.
 
 Tiered collection (`Tier::{Continuous, ShortSample, Profile, DeepTrace}`)
 exists as an enum so the seam is real, and all four tiers are implemented
