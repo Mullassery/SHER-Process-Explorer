@@ -3,14 +3,17 @@
 
 pub mod affinity;
 pub mod kernel_log;
+pub mod perf;
 pub mod procfs;
+pub mod strace;
 pub mod systemd;
 
 use std::path::{Path, PathBuf};
 
 use sher_pe_model::{
-    CgroupInfo, CpuStats, DiskIoStats, NamespaceInfo, NetworkConnection, OpenFile, Pid,
-    ProcessSnapshot, ProcessState, SecurityContext, ThreadSnapshot,
+    CgroupInfo, CpuStats, DiskIoStats, HotFunction, NamespaceInfo, NetworkConnection, OpenFile,
+    Pid, ProcessSnapshot, ProcessState, SchedulerStats, SecurityContext, SyscallStat,
+    ThreadSnapshot,
 };
 
 use crate::{Result, TelemetryAdapter};
@@ -137,6 +140,22 @@ impl TelemetryAdapter for LinuxAdapter {
 
     fn disk_io(&self, pid: Pid) -> Result<DiskIoStats> {
         procfs::io::read_io(&self.root, pid)
+    }
+
+    fn scheduler_stats(&self, pid: Pid) -> Result<SchedulerStats> {
+        procfs::scheduler::read_schedstat(&self.root, pid)
+    }
+
+    fn sample_hot_functions(
+        &self,
+        pid: Pid,
+        duration: std::time::Duration,
+    ) -> Result<Vec<HotFunction>> {
+        perf::sample_hot_functions(pid, duration)
+    }
+
+    fn sample_syscalls(&self, pid: Pid, duration: std::time::Duration) -> Result<Vec<SyscallStat>> {
+        strace::sample_syscalls(pid, duration)
     }
 }
 

@@ -10,25 +10,33 @@
 pub mod linux;
 pub mod testing;
 
+use std::time::Duration;
+
 use sher_pe_model::{
-    CgroupInfo, DiskIoStats, NamespaceInfo, NetworkConnection, OpenFile, Pid, ProcessSnapshot,
-    SecurityContext, ThreadSnapshot,
+    CgroupInfo, DiskIoStats, HotFunction, NamespaceInfo, NetworkConnection, OpenFile, Pid,
+    ProcessSnapshot, SchedulerStats, SecurityContext, SyscallStat, ThreadSnapshot,
 };
 
 pub type Result<T> = std::result::Result<T, TelemetryError>;
 
 /// Collection depth, from cheap-and-continuous to expensive-and-opt-in.
-/// Only `Continuous` is implemented this pass — see `CLAUDE.md`'s "no fake
-/// stubs" rule: the others are honest `TelemetryError::Unsupported`, not a
-/// silent empty result.
+/// `Continuous`, `ShortSample` (`strace -c`), and `Profile` (`perf`) are
+/// implemented for `LinuxAdapter` (Phases 0 and 2). `DeepTrace` (eBPF,
+/// Phase 3) is not — see `CLAUDE.md`'s "no fake stubs" rule: an
+/// unimplemented tier is an honest `TelemetryError::Unsupported`, not a
+/// silent empty result. An adapter that doesn't override
+/// `sample_hot_functions`/`sample_syscalls` returns `Unsupported` for
+/// those tiers too, by default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tier {
     /// Level 1 — cheap enough to sample continuously (reading `/proc`
     /// fields already resident in the kernel).
     Continuous,
-    /// Level 2 — a short, targeted sample (e.g. a brief `perf` stat run).
+    /// Level 2 — a short, targeted sample (`strace -c`'s syscall-count
+    /// summary).
     ShortSample,
-    /// Level 3 — explicit stack-sampling profile.
+    /// Level 3 — explicit stack-sampling profile (`perf record`/`perf
+    /// report`).
     Profile,
     /// Level 4 — deep tracing (eBPF/`perf` syscall/I/O/network tracing).
     DeepTrace,
@@ -73,14 +81,21 @@ pub trait TelemetryAdapter: Send + Sync {
     /// `why_disk`'s byte-delta calculation, not the continuous refresh
     /// loop, since it requires an extra privileged read per call.
     fn disk_io(&self, pid: Pid) -> Result<DiskIoStats>;
+    /// Scheduler accounting (`Tier::Continuous` — cheap, no sampling
+    /// needed): time actually running vs. time waiting for a CPU.
+    fn scheduler_stats(&self, pid: Pid) -> Result<SchedulerStats>;
 
-    /// Attempts collection at `tier`. Only `Tier::Continuous` — already
-    /// covered by the methods above — is available this pass; every other
-    /// tier is a typed `Unsupported`, never a silent empty success.
-    fn collect(&self, _pid: Pid, tier: Tier) -> Result<()> {
-        match tier {
-            Tier::Continuous => Ok(()),
-            other => Err(TelemetryError::Unsupported(other)),
-        }
+    /// `Tier::Profile` — a short stack-sampling profile via `perf`. `Ok`
+    /// with an empty `Vec` is a valid "no samples landed anywhere
+    /// interesting" result; anything that couldn't be sampled at all
+    /// (`perf` missing, insufficient privilege, unsupported adapter) is a
+    /// typed error, never a silently-empty list standing in for both.
+    fn sample_hot_functions(&self, _pid: Pid, _duration: Duration) -> Result<Vec<HotFunction>> {
+        Err(TelemetryError::Unsupported(Tier::Profile))
+    }
+
+    /// `Tier::ShortSample` — a short syscall-count sample via `strace -c`.
+    fn sample_syscalls(&self, _pid: Pid, _duration: Duration) -> Result<Vec<SyscallStat>> {
+        Err(TelemetryError::Unsupported(Tier::ShortSample))
     }
 }

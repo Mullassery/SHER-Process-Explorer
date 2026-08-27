@@ -11,5 +11,6 @@ pub mod memory;
 pub mod namespace;
 pub mod net;
 pub mod process;
+pub mod scheduler;
 pub mod security;
 pub mod threads;
