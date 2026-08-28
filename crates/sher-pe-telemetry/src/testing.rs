@@ -7,7 +7,7 @@ use std::sync::Mutex;
 
 use sher_pe_model::{
     CgroupInfo, ContainerInfo, DiskIoStats, LogEntry, NamespaceInfo, NetworkConnection, OpenFile,
-    Pid, ProcessSnapshot, SchedulerStats, SecurityContext, ThreadSnapshot,
+    Pid, ProcessSnapshot, SchedulerStats, SecurityContext, SystemOverview, ThreadSnapshot,
 };
 
 use crate::{Result, TelemetryAdapter, TelemetryError};
@@ -26,6 +26,7 @@ pub struct MockTelemetryAdapter {
     container_info: Mutex<HashMap<Pid, ContainerInfo>>,
     journal_entries: Mutex<HashMap<Pid, Vec<LogEntry>>>,
     kernel_log: Mutex<HashMap<Pid, Vec<String>>>,
+    system_overview: Mutex<Option<SystemOverview>>,
 }
 
 impl MockTelemetryAdapter {
@@ -77,6 +78,10 @@ impl MockTelemetryAdapter {
 
     pub fn set_kernel_log(&self, pid: Pid, lines: Vec<String>) {
         self.kernel_log.lock().unwrap().insert(pid, lines);
+    }
+
+    pub fn set_system_overview(&self, overview: SystemOverview) {
+        *self.system_overview.lock().unwrap() = Some(overview);
     }
 }
 
@@ -193,6 +198,15 @@ impl TelemetryAdapter for MockTelemetryAdapter {
             .unwrap()
             .get(&pid)
             .cloned()
+            .unwrap_or_default())
+    }
+
+    fn system_overview(&self) -> Result<SystemOverview> {
+        Ok(self
+            .system_overview
+            .lock()
+            .unwrap()
+            .clone()
             .unwrap_or_default())
     }
 }

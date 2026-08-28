@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use sher_pe_model::{
     CgroupInfo, DiskIoStats, FamilyRollup, HotFunction, NamespaceInfo, NetworkConnection, OpenFile,
-    Pid, ProcessSnapshot, ProcessTree, SchedulerStats, SecurityContext, SyscallStat,
+    Pid, ProcessSnapshot, ProcessTree, SchedulerStats, SecurityContext, SyscallStat, SystemOverview,
     ThreadSnapshot, TimelineEvent, TimelineEventKind,
 };
 use sher_pe_telemetry::{TelemetryAdapter, TelemetryError};
@@ -322,6 +322,13 @@ impl ProcessIntelligence {
         self.adapter.systemd_unit(pid)
     }
 
+    /// System-wide totals (memory, swap, load average, uptime, kernel
+    /// version, process count) as of right now — not tracked as part of
+    /// `refresh()`'s history/timeline, since it isn't per-process state.
+    pub fn system_overview(&self) -> Result<SystemOverview> {
+        self.adapter.system_overview()
+    }
+
     /// Live scheduler accounting (time running vs. time waiting for a
     /// CPU) for `pid`.
     pub fn scheduler_stats(&self, pid: Pid) -> Result<SchedulerStats> {
@@ -475,6 +482,9 @@ mod tests {
         }
         fn kernel_log_for(&self, pid: Pid) -> sher_pe_telemetry::Result<Vec<String>> {
             self.0.kernel_log_for(pid)
+        }
+        fn system_overview(&self) -> sher_pe_telemetry::Result<SystemOverview> {
+            self.0.system_overview()
         }
     }
 

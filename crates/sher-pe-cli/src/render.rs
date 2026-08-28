@@ -24,6 +24,58 @@ fn not_found_error(pid: Pid) -> i32 {
     1
 }
 
+pub fn system(intel: &ProcessIntelligence, json: bool) -> i32 {
+    let overview = match intel.system_overview() {
+        Ok(overview) => overview,
+        Err(err) => {
+            eprintln!("sher: failed to read system overview: {err}");
+            return 1;
+        }
+    };
+
+    print_json_or(json, &overview, || {
+        let mem = &overview.memory;
+        let uptime_secs = overview.uptime_secs as u64;
+        println!(
+            "uptime:   {}d {}h {}m",
+            uptime_secs / 86400,
+            (uptime_secs % 86400) / 3600,
+            (uptime_secs % 3600) / 60
+        );
+        println!("kernel:   {}", overview.kernel_version);
+        println!("processes: {}", overview.process_count);
+        println!(
+            "load avg: {:.2} {:.2} {:.2} (1m 5m 15m)",
+            overview.load_average.one_min,
+            overview.load_average.five_min,
+            overview.load_average.fifteen_min
+        );
+        println!(
+            "memory:   {} / {} KB used ({:.1}%), {} KB available, {} KB buffers, {} KB cached",
+            mem.used() / 1024,
+            mem.total / 1024,
+            if mem.total > 0 {
+                mem.used() as f64 / mem.total as f64 * 100.0
+            } else {
+                0.0
+            },
+            mem.available / 1024,
+            mem.buffers / 1024,
+            mem.cached / 1024
+        );
+        if mem.swap_total > 0 {
+            println!(
+                "swap:     {} / {} KB used",
+                mem.swap_used() / 1024,
+                mem.swap_total / 1024
+            );
+        } else {
+            println!("swap:     (none configured)");
+        }
+    });
+    0
+}
+
 pub fn ps(intel: &ProcessIntelligence, json: bool) -> i32 {
     let tree = intel.tree();
     let mut processes: Vec<&ProcessSnapshot> = tree.nodes.values().collect();

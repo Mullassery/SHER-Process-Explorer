@@ -532,6 +532,9 @@ mod tests {
         fn kernel_log_for(&self, pid: PidType) -> sher_pe_telemetry::Result<Vec<String>> {
             self.0.kernel_log_for(pid)
         }
+        fn system_overview(&self) -> sher_pe_telemetry::Result<sher_pe_model::SystemOverview> {
+            self.0.system_overview()
+        }
     }
 
     fn new_intelligence() -> (Arc<MockTelemetryAdapter>, ProcessIntelligence) {

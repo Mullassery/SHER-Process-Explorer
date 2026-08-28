@@ -9,6 +9,7 @@ pub mod kernel_log;
 pub mod perf;
 pub mod procfs;
 pub mod strace;
+pub mod system;
 pub mod systemd;
 
 use std::path::{Path, PathBuf};
@@ -16,7 +17,7 @@ use std::path::{Path, PathBuf};
 use sher_pe_model::{
     CgroupInfo, ContainerInfo, CpuStats, DiskIoStats, HotFunction, LogEntry, NamespaceInfo,
     NetworkConnection, OpenFile, Pid, ProcessSnapshot, ProcessState, SchedulerStats,
-    SecurityContext, SyscallStat, ThreadSnapshot, TraceEvent,
+    SecurityContext, SyscallStat, SystemOverview, ThreadSnapshot, TraceEvent,
 };
 
 use crate::{Result, TelemetryAdapter};
@@ -164,6 +165,16 @@ impl TelemetryAdapter for LinuxAdapter {
         let snap = self.process(pid)?;
         let log = kernel_log::read_dmesg()?;
         Ok(kernel_log::correlate_kernel_lines(&log, pid, &snap.name))
+    }
+
+    fn system_overview(&self) -> Result<SystemOverview> {
+        Ok(SystemOverview {
+            memory: system::read_meminfo(&self.root)?,
+            load_average: system::read_loadavg(&self.root)?,
+            uptime_secs: system::read_uptime_secs(&self.root)?,
+            kernel_version: system::read_kernel_version(&self.root)?,
+            process_count: self.list_pids()?.len(),
+        })
     }
 
     fn sample_hot_functions(

@@ -191,3 +191,23 @@ evidence model has been validated against real-world findings.
 `.deb`/`.rpm`/AUR packaging, a background daemon mode with persistent
 (SQLite or similar) history for longer look-back windows and crash
 post-mortems, and validated testing across Ubuntu, Fedora, Debian, and Arch.
+
+## Phase 9 — Quick wins from a PyQt6 rebuild spec review
+
+A separate, much narrower PyQt6-based "SHER-Process-Explorer" spec was
+reviewed against this project for ideas worth folding in — this project's
+scope remains the larger of the two, so good ideas from that spec land here
+as additions, not a rewrite. Gaps identified: system-wide overview
+(memory/swap/load/uptime/kernel — this project previously reported
+per-process data only), process control (kill/signal with confirmation),
+export/diagnostic reports, process groups/sessions, GUI table/graph views,
+config persistence, keyboard shortcuts/context menus, FD limits, and env
+vars. Places this project already exceeds that spec (e.g. the
+evidence-typed `Confidence` system) are left as-is.
+
+- System-wide overview (`SystemOverview`: `/proc/meminfo`, `/proc/loadavg`,
+  `/proc/uptime`, `/proc/version`, process count) ✅ — `sher system` (CLI),
+  a persistent status line in the GUI's top bar, and
+  `ProcessIntelligence::system_overview()` for both to share.
+- Process control (kill/signal with confirmation) — pending.
+- Export snapshots + diagnostic reports — pending.

@@ -15,7 +15,7 @@ use std::time::Duration;
 use sher_pe_model::{
     CgroupInfo, ContainerInfo, DiskIoStats, HotFunction, LogEntry, NamespaceInfo,
     NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats, SecurityContext,
-    SyscallStat, ThreadSnapshot, TraceEvent,
+    SyscallStat, SystemOverview, ThreadSnapshot, TraceEvent,
 };
 
 pub type Result<T> = std::result::Result<T, TelemetryError>;
@@ -97,6 +97,9 @@ pub trait TelemetryAdapter: Send + Sync {
     /// best-effort correlation (see
     /// `linux::kernel_log::correlate_kernel_lines`), not a certainty.
     fn kernel_log_for(&self, pid: Pid) -> Result<Vec<String>>;
+    /// System-wide (not per-process) totals: memory, swap, load average,
+    /// uptime, kernel version, process count.
+    fn system_overview(&self) -> Result<SystemOverview>;
 
     /// `Tier::Profile` — a short stack-sampling profile via `perf`. `Ok`
     /// with an empty `Vec` is a valid "no samples landed anywhere

@@ -26,6 +26,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// System-wide totals: memory, swap, load average, uptime, kernel
+    /// version, process count.
+    System,
     /// List every process, flat.
     Ps,
     /// Show the process hierarchy, optionally rooted at one pid.
@@ -163,6 +166,7 @@ fn main() {
     }
 
     let exit_code = match cli.command {
+        Command::System => render::system(&intel, cli.json),
         Command::Ps => render::ps(&intel, cli.json),
         Command::Tree { pid } => render::tree(&intel, pid, cli.json),
         Command::Inspect { pid } => render::inspect(&intel, pid, cli.json),

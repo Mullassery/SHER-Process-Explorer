@@ -78,6 +78,10 @@ pub struct SherApp {
     /// isn't Linux" or "`/proc` isn't readable." Shown as a persistent
     /// banner rather than silently leaving the tree empty.
     refresh_error: Option<String>,
+    /// Re-fetched alongside the process table on every `refresh()` tick —
+    /// cheap (a handful of `/proc` reads), so no need to defer it to a
+    /// button click the way `sample_hot_functions`/`sample_syscalls` are.
+    system_overview: Option<sher_pe_model::SystemOverview>,
     expanded: HashSet<Pid>,
     filter: String,
     selected: Option<Pid>,
@@ -93,6 +97,7 @@ impl SherApp {
             intel,
             last_refresh: Instant::now(),
             refresh_error: None,
+            system_overview: None,
             expanded: HashSet::new(),
             filter: String::new(),
             selected: None,
@@ -112,6 +117,7 @@ impl SherApp {
         } else {
             self.refresh_error = None;
         }
+        self.system_overview = self.intel.system_overview().ok();
     }
 
     fn finding_for(&mut self, tab: DetailTab, pid: Pid) -> &Finding {
@@ -159,6 +165,28 @@ impl eframe::App for SherApp {
                     egui::Color32::from_rgb(220, 80, 80),
                     format!("refresh failed: {err}"),
                 );
+            }
+            if let Some(overview) = &self.system_overview {
+                let mem = &overview.memory;
+                let percent_used = if mem.total > 0 {
+                    mem.used() as f64 / mem.total as f64 * 100.0
+                } else {
+                    0.0
+                };
+                let uptime_secs = overview.uptime_secs as u64;
+                ui.label(format!(
+                    "load {:.2} {:.2} {:.2}  |  mem {}/{} MB ({:.0}%)  |  {} processes  |  up {}d {}h {}m",
+                    overview.load_average.one_min,
+                    overview.load_average.five_min,
+                    overview.load_average.fifteen_min,
+                    mem.used() / 1024 / 1024,
+                    mem.total / 1024 / 1024,
+                    percent_used,
+                    overview.process_count,
+                    uptime_secs / 86400,
+                    (uptime_secs % 86400) / 3600,
+                    (uptime_secs % 3600) / 60
+                ));
             }
         });
 
