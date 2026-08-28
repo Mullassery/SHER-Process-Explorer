@@ -242,3 +242,17 @@ evidence-typed `Confidence` system) are left as-is.
   Linux: exported JSON for a real process correctly contains its process
   detail, 4 findings, and the live system process count; a nonexistent
   pid returns a typed not-found error, not an empty or partial report.
+
+### Note on validation environment
+
+All real-Linux validation this project relies on (privileged Docker
+containers) remains the practical path for now. `~/tinybridge` (a sibling
+project — a macOS-native Linux VM runtime via Apple's
+Virtualization.framework) was tried as a lighter-weight alternative on
+2026-08-28: it built and its hypervisor lifecycle worked (`Running` state,
+real DHCP-assigned guest IP), but the guest kernel never produced any
+serial console output over a 60s window, so no shell was ever reachable
+inside it — a real, currently-unresolved TinyBridge-side blocker (see its
+own README for the concrete AMFI-signature finding from that session), not
+something fixable from this project's side. Revisit once TinyBridge's
+guest boot is confirmed working.
