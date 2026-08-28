@@ -535,6 +535,13 @@ mod tests {
         fn system_overview(&self) -> sher_pe_telemetry::Result<sher_pe_model::SystemOverview> {
             self.0.system_overview()
         }
+        fn send_signal(
+            &self,
+            pid: PidType,
+            signal: sher_pe_model::Signal,
+        ) -> sher_pe_telemetry::Result<()> {
+            self.0.send_signal(pid, signal)
+        }
     }
 
     fn new_intelligence() -> (Arc<MockTelemetryAdapter>, ProcessIntelligence) {

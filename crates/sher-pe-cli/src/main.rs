@@ -6,7 +6,7 @@ mod render;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use sher_pe_intelligence::ProcessIntelligence;
-use sher_pe_model::Pid;
+use sher_pe_model::{Pid, Signal};
 use sher_pe_telemetry::linux::LinuxAdapter;
 
 #[derive(Parser)]
@@ -94,6 +94,17 @@ enum Command {
         #[arg(long)]
         i_accept_the_overhead: bool,
     },
+    /// Send a POSIX signal to a process (default: SIGTERM). Prompts for
+    /// interactive confirmation unless `--yes` is passed — this sends a
+    /// real signal to a real process, not a simulation.
+    Kill {
+        pid: Pid,
+        #[arg(value_enum, long, default_value = "term")]
+        signal: SignalArg,
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        yes: bool,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -102,6 +113,35 @@ enum WhyAspect {
     Memory,
     Network,
     Disk,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum SignalArg {
+    Term,
+    Kill,
+    Hup,
+    Int,
+    Quit,
+    Usr1,
+    Usr2,
+    Stop,
+    Cont,
+}
+
+impl From<SignalArg> for Signal {
+    fn from(arg: SignalArg) -> Signal {
+        match arg {
+            SignalArg::Term => Signal::Term,
+            SignalArg::Kill => Signal::Kill,
+            SignalArg::Hup => Signal::Hup,
+            SignalArg::Int => Signal::Int,
+            SignalArg::Quit => Signal::Quit,
+            SignalArg::Usr1 => Signal::Usr1,
+            SignalArg::Usr2 => Signal::Usr2,
+            SignalArg::Stop => Signal::Stop,
+            SignalArg::Cont => Signal::Cont,
+        }
+    }
 }
 
 /// Rust's runtime ignores `SIGPIPE` by default, which turns a closed
@@ -184,6 +224,9 @@ fn main() {
         Command::DeepTrace {
             pid, duration_secs, ..
         } => render::deep_trace(&intel, pid, duration_secs, cli.json),
+        Command::Kill { pid, signal, yes } => {
+            render::kill(&intel, pid, signal.into(), yes, cli.json)
+        }
     };
     std::process::exit(exit_code);
 }

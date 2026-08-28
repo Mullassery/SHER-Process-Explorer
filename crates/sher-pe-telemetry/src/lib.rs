@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use sher_pe_model::{
     CgroupInfo, ContainerInfo, DiskIoStats, HotFunction, LogEntry, NamespaceInfo,
-    NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats, SecurityContext,
+    NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats, SecurityContext, Signal,
     SyscallStat, SystemOverview, ThreadSnapshot, TraceEvent,
 };
 
@@ -100,6 +100,13 @@ pub trait TelemetryAdapter: Send + Sync {
     /// System-wide (not per-process) totals: memory, swap, load average,
     /// uptime, kernel version, process count.
     fn system_overview(&self) -> Result<SystemOverview>;
+    /// Send a real POSIX signal to `pid` (`kill(2)`). This is the one
+    /// write/control operation `TelemetryAdapter` exposes, as opposed to
+    /// everything else, which only reads. Confirmation before calling this
+    /// (especially for `Signal::Kill`) is the CLI/GUI layer's
+    /// responsibility, not this trait's — a caller that already decided to
+    /// send a signal should not be second-guessed here.
+    fn send_signal(&self, pid: Pid, signal: Signal) -> Result<()>;
 
     /// `Tier::Profile` — a short stack-sampling profile via `perf`. `Ok`
     /// with an empty `Vec` is a valid "no samples landed anywhere

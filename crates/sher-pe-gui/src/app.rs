@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use sher_pe_intelligence::ProcessIntelligence;
 use sher_pe_investigation as investigation;
-use sher_pe_model::{Finding, HotFunction, Pid, SyscallStat};
+use sher_pe_model::{Finding, HotFunction, Pid, Signal, SyscallStat};
 
 use crate::treeview::flatten_tree;
 
@@ -89,6 +89,13 @@ pub struct SherApp {
     cached_finding: Option<CachedFinding>,
     cached_hot_functions: Option<(Pid, Result<Vec<HotFunction>, String>)>,
     cached_syscalls: Option<(Pid, Result<Vec<SyscallStat>, String>)>,
+    /// A "Terminate"/"Kill" click awaiting explicit confirmation — signals
+    /// are real and irreversible, so nothing is sent until the user
+    /// confirms this inline prompt.
+    pending_signal: Option<(Pid, Signal)>,
+    /// The outcome of the most recently *sent* signal, shown until the
+    /// next signal is sent or a different process is selected.
+    last_signal_result: Option<(Pid, Signal, Result<(), String>)>,
 }
 
 impl SherApp {
@@ -105,6 +112,8 @@ impl SherApp {
             cached_finding: None,
             cached_hot_functions: None,
             cached_syscalls: None,
+            pending_signal: None,
+            last_signal_result: None,
         };
         app.refresh();
         app
@@ -240,6 +249,8 @@ impl SherApp {
                     self.cached_finding = None;
                     self.cached_hot_functions = None;
                     self.cached_syscalls = None;
+                    self.pending_signal = None;
+                    self.last_signal_result = None;
                 }
             });
         }
@@ -334,6 +345,79 @@ impl SherApp {
                 rollup.thread_count,
                 rollup.open_file_count
             ));
+        }
+
+        ui.separator();
+        self.draw_process_control(ui, pid);
+    }
+
+    /// Terminate/Kill buttons plus an inline confirmation step — signals
+    /// are real and irreversible (`Signal::Kill` especially), so nothing
+    /// is sent to `intel.send_signal` until the user confirms.
+    fn draw_process_control(&mut self, ui: &mut egui::Ui, pid: Pid) {
+        ui.horizontal(|ui| {
+            if ui.button("Terminate (SIGTERM)").clicked() {
+                self.pending_signal = Some((pid, Signal::Term));
+            }
+            if ui
+                .button(
+                    egui::RichText::new("Kill (SIGKILL)")
+                        .color(egui::Color32::from_rgb(220, 80, 80)),
+                )
+                .clicked()
+            {
+                self.pending_signal = Some((pid, Signal::Kill));
+            }
+        });
+
+        if let Some((confirm_pid, signal)) = self.pending_signal {
+            if confirm_pid == pid {
+                ui.group(|ui| {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(220, 160, 60),
+                        format!(
+                            "Send {signal} to pid {pid}?{}",
+                            if signal.is_uncatchable() {
+                                " This cannot be caught or ignored by the process."
+                            } else {
+                                ""
+                            }
+                        ),
+                    );
+                    ui.horizontal(|ui| {
+                        if ui.button("Confirm").clicked() {
+                            let result = self
+                                .intel
+                                .send_signal(pid, signal)
+                                .map_err(|e| e.to_string());
+                            self.last_signal_result = Some((pid, signal, result));
+                            self.pending_signal = None;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            self.pending_signal = None;
+                        }
+                    });
+                });
+            }
+        }
+
+        if let Some((result_pid, signal, result)) = &self.last_signal_result {
+            if *result_pid == pid {
+                match result {
+                    Ok(()) => {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(100, 180, 100),
+                            format!("Sent {signal} to pid {pid}."),
+                        );
+                    }
+                    Err(err) => {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(220, 80, 80),
+                            format!("Failed to send {signal} to pid {pid}: {err}"),
+                        );
+                    }
+                }
+            }
         }
     }
 

@@ -8,8 +8,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use sher_pe_model::{
     CgroupInfo, DiskIoStats, FamilyRollup, HotFunction, NamespaceInfo, NetworkConnection, OpenFile,
-    Pid, ProcessSnapshot, ProcessTree, SchedulerStats, SecurityContext, SyscallStat, SystemOverview,
-    ThreadSnapshot, TimelineEvent, TimelineEventKind,
+    Pid, ProcessSnapshot, ProcessTree, SchedulerStats, SecurityContext, Signal, SyscallStat,
+    SystemOverview, ThreadSnapshot, TimelineEvent, TimelineEventKind,
 };
 use sher_pe_telemetry::{TelemetryAdapter, TelemetryError};
 
@@ -329,6 +329,14 @@ impl ProcessIntelligence {
         self.adapter.system_overview()
     }
 
+    /// Send a real POSIX signal to `pid`. Callers (CLI/GUI) are expected to
+    /// have already confirmed this with the user — this method itself does
+    /// not prompt or double-check, since it may be called from a
+    /// non-interactive context (`--yes`, a scripted test).
+    pub fn send_signal(&self, pid: Pid, signal: Signal) -> Result<()> {
+        self.adapter.send_signal(pid, signal)
+    }
+
     /// Live scheduler accounting (time running vs. time waiting for a
     /// CPU) for `pid`.
     pub fn scheduler_stats(&self, pid: Pid) -> Result<SchedulerStats> {
@@ -486,6 +494,9 @@ mod tests {
         fn system_overview(&self) -> sher_pe_telemetry::Result<SystemOverview> {
             self.0.system_overview()
         }
+        fn send_signal(&self, pid: Pid, signal: Signal) -> sher_pe_telemetry::Result<()> {
+            self.0.send_signal(pid, signal)
+        }
     }
 
     #[test]
@@ -505,6 +516,29 @@ mod tests {
         intel.refresh_at(1002).unwrap();
         // One more tick later, the grace period is over.
         assert_eq!(intel.history(1).len(), 0);
+    }
+
+    #[test]
+    fn send_signal_passes_through_to_the_adapter() {
+        let (mock, mut intel) = new_intelligence();
+        mock.set_process(snap(1, 0, 100, 0, 1000));
+        intel.refresh_at(1000).unwrap();
+
+        intel.send_signal(1, sher_pe_model::Signal::Term).unwrap();
+
+        assert_eq!(mock.sent_signals(), vec![(1, sher_pe_model::Signal::Term)]);
+    }
+
+    #[test]
+    fn send_signal_to_nonexistent_pid_is_a_typed_not_found_error() {
+        let (_, intel) = new_intelligence();
+        let err = intel
+            .send_signal(999, sher_pe_model::Signal::Kill)
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            sher_pe_telemetry::TelemetryError::NotFound(999)
+        ));
     }
 
     #[test]

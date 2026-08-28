@@ -7,7 +7,7 @@ use std::sync::Mutex;
 
 use sher_pe_model::{
     CgroupInfo, ContainerInfo, DiskIoStats, LogEntry, NamespaceInfo, NetworkConnection, OpenFile,
-    Pid, ProcessSnapshot, SchedulerStats, SecurityContext, SystemOverview, ThreadSnapshot,
+    Pid, ProcessSnapshot, SchedulerStats, SecurityContext, Signal, SystemOverview, ThreadSnapshot,
 };
 
 use crate::{Result, TelemetryAdapter, TelemetryError};
@@ -27,6 +27,10 @@ pub struct MockTelemetryAdapter {
     journal_entries: Mutex<HashMap<Pid, Vec<LogEntry>>>,
     kernel_log: Mutex<HashMap<Pid, Vec<String>>>,
     system_overview: Mutex<Option<SystemOverview>>,
+    /// Every `send_signal` call this mock has received, in order — lets a
+    /// test assert exactly what a `ProcessIntelligence::send_signal` call
+    /// forwarded, without a real `kill(2)` ever happening.
+    sent_signals: Mutex<Vec<(Pid, Signal)>>,
 }
 
 impl MockTelemetryAdapter {
@@ -82,6 +86,11 @@ impl MockTelemetryAdapter {
 
     pub fn set_system_overview(&self, overview: SystemOverview) {
         *self.system_overview.lock().unwrap() = Some(overview);
+    }
+
+    /// Every `send_signal` call received so far, in order.
+    pub fn sent_signals(&self) -> Vec<(Pid, Signal)> {
+        self.sent_signals.lock().unwrap().clone()
     }
 }
 
@@ -208,5 +217,13 @@ impl TelemetryAdapter for MockTelemetryAdapter {
             .unwrap()
             .clone()
             .unwrap_or_default())
+    }
+
+    fn send_signal(&self, pid: Pid, signal: Signal) -> Result<()> {
+        if !self.processes.lock().unwrap().contains_key(&pid) {
+            return Err(TelemetryError::NotFound(pid));
+        }
+        self.sent_signals.lock().unwrap().push((pid, signal));
+        Ok(())
     }
 }

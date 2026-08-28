@@ -7,6 +7,7 @@ pub mod container;
 pub mod journald;
 pub mod kernel_log;
 pub mod perf;
+pub mod process_control;
 pub mod procfs;
 pub mod strace;
 pub mod system;
@@ -17,7 +18,7 @@ use std::path::{Path, PathBuf};
 use sher_pe_model::{
     CgroupInfo, ContainerInfo, CpuStats, DiskIoStats, HotFunction, LogEntry, NamespaceInfo,
     NetworkConnection, OpenFile, Pid, ProcessSnapshot, ProcessState, SchedulerStats,
-    SecurityContext, SyscallStat, SystemOverview, ThreadSnapshot, TraceEvent,
+    SecurityContext, Signal, SyscallStat, SystemOverview, ThreadSnapshot, TraceEvent,
 };
 
 use crate::{Result, TelemetryAdapter};
@@ -191,6 +192,10 @@ impl TelemetryAdapter for LinuxAdapter {
 
     fn deep_trace(&self, pid: Pid, duration: std::time::Duration) -> Result<Vec<TraceEvent>> {
         bpftrace::deep_trace(pid, duration)
+    }
+
+    fn send_signal(&self, pid: Pid, signal: Signal) -> Result<()> {
+        process_control::send_signal(pid, signal)
     }
 }
 

@@ -501,6 +501,81 @@ pub fn deep_trace(intel: &ProcessIntelligence, pid: Pid, duration_secs: u64, jso
     }
 }
 
+/// `sher kill <pid>` — sends a real POSIX signal to a real process.
+/// Prompts for interactive confirmation unless `yes` is set, since this is
+/// the one CLI command that changes system state rather than just reading
+/// it.
+pub fn kill(
+    intel: &ProcessIntelligence,
+    pid: Pid,
+    signal: sher_pe_model::Signal,
+    yes: bool,
+    json: bool,
+) -> i32 {
+    let Some(process) = intel.process(pid) else {
+        return not_found_error(pid);
+    };
+    let process_name = process.name.clone();
+
+    if !yes {
+        use std::io::Write;
+        print!(
+            "Send {signal} to {} (pid {pid})?{} [y/N] ",
+            process.name,
+            if signal.is_uncatchable() {
+                " This cannot be caught or ignored by the process."
+            } else {
+                ""
+            }
+        );
+        if std::io::stdout().flush().is_err() {
+            eprintln!("sher: failed to write confirmation prompt");
+            return 1;
+        }
+        let mut answer = String::new();
+        if std::io::stdin().read_line(&mut answer).is_err() {
+            eprintln!("sher: failed to read confirmation, aborting");
+            return 1;
+        }
+        let answer = answer.trim().to_lowercase();
+        if answer != "y" && answer != "yes" {
+            println!("Aborted.");
+            return 1;
+        }
+    }
+
+    let result = intel.send_signal(pid, signal);
+    if json {
+        #[derive(serde::Serialize)]
+        struct KillResult {
+            pid: Pid,
+            process_name: String,
+            signal: String,
+            ok: bool,
+            error: Option<String>,
+        }
+        let kill_result = KillResult {
+            pid,
+            process_name,
+            signal: signal.to_string(),
+            ok: result.is_ok(),
+            error: result.as_ref().err().map(|e| e.to_string()),
+        };
+        print_json_or(true, &kill_result, || {});
+        return if kill_result.ok { 0 } else { 1 };
+    }
+    match result {
+        Ok(()) => {
+            println!("Sent {signal} to pid {pid} ({process_name}).");
+            0
+        }
+        Err(err) => {
+            eprintln!("sher: failed to send {signal} to pid {pid}: {err}");
+            1
+        }
+    }
+}
+
 fn print_finding(finding: &Finding) {
     println!(
         "[{:?}/{:?}] {}",

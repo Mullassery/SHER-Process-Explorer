@@ -209,5 +209,21 @@ evidence-typed `Confidence` system) are left as-is.
   `/proc/uptime`, `/proc/version`, process count) ✅ — `sher system` (CLI),
   a persistent status line in the GUI's top bar, and
   `ProcessIntelligence::system_overview()` for both to share.
-- Process control (kill/signal with confirmation) — pending.
+- Process control (kill/signal with confirmation) ✅ — real `kill(2)` via
+  `nix::sys::signal` (`TelemetryAdapter::send_signal`), `sher kill <pid>
+  [--signal term|kill|hup|int|quit|usr1|usr2|stop|cont] [--yes] [--json]`
+  (CLI), and Terminate/Kill buttons with an inline confirm/cancel step in
+  the GUI's Overview tab. Confirmation is required by default in both —
+  the CLI prompts interactively unless `--yes` is passed, and the GUI
+  never calls `send_signal` until the user clicks "Confirm." Verified
+  end-to-end on real Linux: `SIGTERM` and `SIGKILL` both actually
+  terminate a real process, a nonexistent pid returns a typed
+  `NotFound` error (not a crash), and declining the CLI's confirmation
+  prompt leaves the process running. That validation caught a real,
+  pre-existing bug unrelated to this feature: the workspace `Cargo.toml`'s
+  `nix` feature list (`["sched", "feature"]`) had never actually enabled
+  `nix::unistd::sysconf` correctly — it happened to build on macOS only
+  because that call site is Linux-`cfg`-gated and had never been compiled
+  for real until this Linux container run. Fixed to `["sched", "signal",
+  "user"]`.
 - Export snapshots + diagnostic reports — pending.
