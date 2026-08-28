@@ -192,6 +192,19 @@ evidence model has been validated against real-world findings.
 (SQLite or similar) history for longer look-back windows and crash
 post-mortems, and validated testing across Ubuntu, Fedora, Debian, and Arch.
 
+- `.deb` via `cargo-deb` ✅ — `[package.metadata.deb]` in
+  `crates/sher-pe-cli/Cargo.toml` (maintainer, copyright, license-file
+  pointing at the root `LICENSE`, extended description, `usr/bin/sher` +
+  `usr/share/doc/sher-process-explorer/README.md` assets). Verified
+  end-to-end on real Debian (`debian:bookworm-slim`) for both `arm64` and
+  `amd64`: `cargo deb -p sher-pe-cli` produces a package, `dpkg -i`
+  installs it cleanly, the generated `copyright` file contains the full
+  SHER license text (not truncated), and the installed `/usr/bin/sher`
+  correctly runs `ps`/`system`/`kill`/`export` against the container's
+  real `/proc` — not just `--version`/`--help`.
+- `.rpm`, AUR, daemon mode, and multi-distro validation beyond Debian —
+  pending.
+
 ## Phase 9 — Quick wins from a PyQt6 rebuild spec review
 
 A separate, much narrower PyQt6-based "SHER-Process-Explorer" spec was
