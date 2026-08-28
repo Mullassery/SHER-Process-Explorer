@@ -4,6 +4,7 @@
 pub mod affinity;
 pub mod bpftrace;
 pub mod container;
+pub mod journald;
 pub mod kernel_log;
 pub mod perf;
 pub mod procfs;
@@ -13,7 +14,7 @@ pub mod systemd;
 use std::path::{Path, PathBuf};
 
 use sher_pe_model::{
-    CgroupInfo, ContainerInfo, CpuStats, DiskIoStats, HotFunction, NamespaceInfo,
+    CgroupInfo, ContainerInfo, CpuStats, DiskIoStats, HotFunction, LogEntry, NamespaceInfo,
     NetworkConnection, OpenFile, Pid, ProcessSnapshot, ProcessState, SchedulerStats,
     SecurityContext, SyscallStat, ThreadSnapshot, TraceEvent,
 };
@@ -150,6 +151,19 @@ impl TelemetryAdapter for LinuxAdapter {
 
     fn container_info(&self, pid: Pid) -> Result<Option<ContainerInfo>> {
         container::container_info(&self.root, &self.sys_root, pid)
+    }
+
+    fn journal_entries(&self, pid: Pid, max_lines: usize) -> Result<Vec<LogEntry>> {
+        let Some(unit) = self.systemd_unit(pid)? else {
+            return Ok(Vec::new());
+        };
+        journald::unit_log_entries(&unit, max_lines)
+    }
+
+    fn kernel_log_for(&self, pid: Pid) -> Result<Vec<String>> {
+        let snap = self.process(pid)?;
+        let log = kernel_log::read_dmesg()?;
+        Ok(kernel_log::correlate_kernel_lines(&log, pid, &snap.name))
     }
 
     fn sample_hot_functions(

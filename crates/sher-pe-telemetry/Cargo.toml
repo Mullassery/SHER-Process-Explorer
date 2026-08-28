@@ -9,6 +9,8 @@ description = "TelemetryAdapter trait + hand-rolled Linux /proc implementation f
 
 [dependencies]
 sher-pe-model.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 

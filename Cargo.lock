@@ -2957,6 +2957,8 @@ name = "sher-pe-telemetry"
 version = "0.1.0"
 dependencies = [
  "nix",
+ "serde",
+ "serde_json",
  "sher-pe-model",
  "thiserror 1.0.69",
  "tracing",

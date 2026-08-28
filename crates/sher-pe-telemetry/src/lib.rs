@@ -13,9 +13,9 @@ pub mod testing;
 use std::time::Duration;
 
 use sher_pe_model::{
-    CgroupInfo, ContainerInfo, DiskIoStats, HotFunction, NamespaceInfo, NetworkConnection,
-    OpenFile, Pid, ProcessSnapshot, SchedulerStats, SecurityContext, SyscallStat, ThreadSnapshot,
-    TraceEvent,
+    CgroupInfo, ContainerInfo, DiskIoStats, HotFunction, LogEntry, NamespaceInfo,
+    NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats, SecurityContext,
+    SyscallStat, ThreadSnapshot, TraceEvent,
 };
 
 pub type Result<T> = std::result::Result<T, TelemetryError>;
@@ -89,6 +89,14 @@ pub trait TelemetryAdapter: Send + Sync {
     /// enriched via `docker`/`podman inspect` when possible. `Ok(None)`
     /// for a process that isn't containerized (the common case).
     fn container_info(&self, pid: Pid) -> Result<Option<ContainerInfo>>;
+    /// Journal entries for the systemd unit that owns `pid`, most recent
+    /// `max_lines`. `Ok(vec![])` when `pid` has no systemd unit — there's
+    /// nothing to correlate, not a failure.
+    fn journal_entries(&self, pid: Pid, max_lines: usize) -> Result<Vec<LogEntry>>;
+    /// Kernel-log lines that mention `pid` or its process name —
+    /// best-effort correlation (see
+    /// `linux::kernel_log::correlate_kernel_lines`), not a certainty.
+    fn kernel_log_for(&self, pid: Pid) -> Result<Vec<String>>;
 
     /// `Tier::Profile` — a short stack-sampling profile via `perf`. `Ok`
     /// with an empty `Vec` is a valid "no samples landed anywhere

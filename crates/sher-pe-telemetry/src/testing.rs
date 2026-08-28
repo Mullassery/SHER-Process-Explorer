@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use sher_pe_model::{
-    CgroupInfo, ContainerInfo, DiskIoStats, NamespaceInfo, NetworkConnection, OpenFile, Pid,
-    ProcessSnapshot, SchedulerStats, SecurityContext, ThreadSnapshot,
+    CgroupInfo, ContainerInfo, DiskIoStats, LogEntry, NamespaceInfo, NetworkConnection, OpenFile,
+    Pid, ProcessSnapshot, SchedulerStats, SecurityContext, ThreadSnapshot,
 };
 
 use crate::{Result, TelemetryAdapter, TelemetryError};
@@ -24,6 +24,8 @@ pub struct MockTelemetryAdapter {
     disk_io: Mutex<HashMap<Pid, DiskIoStats>>,
     scheduler_stats: Mutex<HashMap<Pid, SchedulerStats>>,
     container_info: Mutex<HashMap<Pid, ContainerInfo>>,
+    journal_entries: Mutex<HashMap<Pid, Vec<LogEntry>>>,
+    kernel_log: Mutex<HashMap<Pid, Vec<String>>>,
 }
 
 impl MockTelemetryAdapter {
@@ -45,6 +47,8 @@ impl MockTelemetryAdapter {
         self.disk_io.lock().unwrap().remove(&pid);
         self.scheduler_stats.lock().unwrap().remove(&pid);
         self.container_info.lock().unwrap().remove(&pid);
+        self.journal_entries.lock().unwrap().remove(&pid);
+        self.kernel_log.lock().unwrap().remove(&pid);
     }
 
     pub fn set_threads(&self, pid: Pid, threads: Vec<ThreadSnapshot>) {
@@ -65,6 +69,14 @@ impl MockTelemetryAdapter {
 
     pub fn set_container_info(&self, pid: Pid, info: ContainerInfo) {
         self.container_info.lock().unwrap().insert(pid, info);
+    }
+
+    pub fn set_journal_entries(&self, pid: Pid, entries: Vec<LogEntry>) {
+        self.journal_entries.lock().unwrap().insert(pid, entries);
+    }
+
+    pub fn set_kernel_log(&self, pid: Pid, lines: Vec<String>) {
+        self.kernel_log.lock().unwrap().insert(pid, lines);
     }
 }
 
@@ -162,5 +174,25 @@ impl TelemetryAdapter for MockTelemetryAdapter {
 
     fn container_info(&self, pid: Pid) -> Result<Option<ContainerInfo>> {
         Ok(self.container_info.lock().unwrap().get(&pid).cloned())
+    }
+
+    fn journal_entries(&self, pid: Pid, _max_lines: usize) -> Result<Vec<LogEntry>> {
+        Ok(self
+            .journal_entries
+            .lock()
+            .unwrap()
+            .get(&pid)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    fn kernel_log_for(&self, pid: Pid) -> Result<Vec<String>> {
+        Ok(self
+            .kernel_log
+            .lock()
+            .unwrap()
+            .get(&pid)
+            .cloned()
+            .unwrap_or_default())
     }
 }

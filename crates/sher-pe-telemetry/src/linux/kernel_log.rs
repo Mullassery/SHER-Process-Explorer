@@ -46,9 +46,49 @@ pub fn oom_kill_lines(kernel_log: &str) -> Vec<String> {
         .collect()
 }
 
+/// Filters raw kernel-log text down to lines that mention `pid` or
+/// `comm` — a broader, best-effort correlation than `oom_kill_lines`,
+/// used for Phase 5's timeline view rather than `crash_analysis`'s
+/// specific OOM check. Pure substring matching: a real limitation (the
+/// pid number could coincidentally appear in an unrelated line), kept
+/// honest rather than hidden — callers see it labeled as best-effort,
+/// not asserted as certain.
+pub fn correlate_kernel_lines(
+    kernel_log: &str,
+    pid: sher_pe_model::Pid,
+    comm: &str,
+) -> Vec<String> {
+    let pid_str = pid.to_string();
+    kernel_log
+        .lines()
+        .filter(|line| line.contains(&pid_str) || (!comm.is_empty() && line.contains(comm)))
+        .map(str::to_string)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn correlate_kernel_lines_matches_pid_or_comm() {
+        let log = "\
+[Mon Aug 25 10:00:00 2026] sherd[1234]: normal startup message
+[Mon Aug 25 10:05:00 2026] some-worker[5678]: unrelated message
+[Mon Aug 25 10:06:00 2026] kernel: process 1234 killed by signal 11
+[Mon Aug 25 10:07:00 2026] totally different line
+";
+        let lines = correlate_kernel_lines(log, 1234, "sherd");
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].contains("sherd[1234]"));
+        assert!(lines[1].contains("process 1234 killed"));
+    }
+
+    #[test]
+    fn correlate_kernel_lines_empty_when_nothing_matches() {
+        let log = "[Mon Aug 25 10:00:00 2026] unrelated\n";
+        assert!(correlate_kernel_lines(log, 999, "nomatch").is_empty());
+    }
 
     #[test]
     fn oom_kill_lines_filters_relevant_entries() {
