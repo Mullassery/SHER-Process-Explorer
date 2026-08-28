@@ -146,11 +146,30 @@ it — exactly the transcription risk that motivated avoiding a hand-built
 syscall-number table in Phase 3, now validated as a real, recurring risk
 worth designing around.
 
-## Phase 5 — Log correlation & crash timeline UI
+## Phase 5 — Log correlation & crash timeline UI ✅
 
-Full journald + kernel-log + resource-metric timeline correlation with a
-visual timeline, built on the `TimelineEvent` history Phase 0 already
-accumulates plus richer `dmesg`/journald ingestion.
+`journal_entries` shells `journalctl -u <unit> -o json` and parses the
+real structured per-line JSON (not scraped text) into `LogEntry`, with a
+real epoch-microsecond timestamp directly comparable to `TimelineEvent`.
+`sher timeline <pid>` (CLI) and the GUI's new Timeline tab both merge
+recorded lifecycle events with journal entries chronologically by their
+actual timestamps — the same merge logic, no separate CLI/GUI code path
+— plus a separately-labeled best-effort kernel-log correlation section
+(`kernel_log_for`, generalizing Phase 0's OOM-only check to match by pid
+or process name). Kept separate rather than merged into the same sorted
+list: `dmesg`'s timestamps aren't reliably comparable to journald's real
+epoch time, so pretending otherwise would be a fabricated precision.
+
+**Verified end-to-end on real Linux** against a genuine systemd +
+journald container (`jrei/systemd-ubuntu`, real `systemd-journald.service`
+unit): `sher timeline` correctly merged real journal messages ("Journal
+started", "Runtime Journal is 8.0M...") with the process's own recorded
+`Started` event in the right chronological order, in both human and
+`--json` output. The kernel-log section's output was itself a live
+demonstration of the documented "coincidental substring match" caveat —
+docker networking lines matched via the pid number appearing
+incidentally, exactly the false-positive risk the doc comment warns
+about, confirming the caveat is accurate rather than theoretical.
 
 ## Phase 6 — SHER Kernel adapter
 

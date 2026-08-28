@@ -130,6 +130,10 @@ Submodules:
   `docker`/`podman inspect --format` when possible. containerd is
   detected but not enriched (no single universal inspect CLI). Confirmed
   end-to-end against a real running Docker container.
+- `linux::journald` — real journald ingestion for timeline correlation:
+  `journalctl -u <unit> -o json`, parsed via `serde_json` against
+  journald's real, stable export-format field names (confirmed against a
+  genuine systemd+journald container), not scraped text.
 
 Tiered collection (`Tier::{Continuous, ShortSample, Profile, DeepTrace}`)
 exists as an enum so the seam is real, and all four tiers are implemented
@@ -188,6 +192,7 @@ sher tree [pid]                          # hierarchical view + family rollups
 sher inspect <pid>                       # Overview/Memory/CPU/Threads/Files/Network/Security
 sher why <pid> <cpu|memory|network|disk>
 sher investigate <pid>
+sher timeline <pid>                      # lifecycle events + journald merged chronologically
 sher trace <pid>                         # strace -c syscall breakdown (Tier::ShortSample)
 sher profile <pid>                       # perf hot-function sample (Tier::Profile)
 sher deep-trace <pid> --i-accept-the-overhead   # bpftrace live syscall timeline (Tier::DeepTrace)
