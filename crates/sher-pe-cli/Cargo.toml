@@ -23,3 +23,21 @@ tracing-subscriber.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[package.metadata.deb]
+name = "sher-process-explorer"
+maintainer = "Georgi Mammen Mullassery <mullassery@gmail.com>"
+copyright = "2026, SHER"
+license-file = ["../../LICENSE", "0"]
+extended-description = """\
+Evidence-based Linux process explorer. Answers what a process is doing \
+and why, not just what top/ps show, with real /proc telemetry, \
+perf/strace/eBPF sampling, container detection, and a deterministic \
+investigation engine that always cites its evidence."""
+depends = "$auto"
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/sher", "usr/bin/", "755"],
+    ["../../README.md", "usr/share/doc/sher-process-explorer/README.md", "644"],
+]

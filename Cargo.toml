@@ -13,7 +13,7 @@ members = [
 version = "0.1.0"
 edition = "2021"
 authors = ["Georgi Mammen Mullassery <mullassery@gmail.com>"]
-license = "Proprietary License — Free to use with explicit attribution"
+license = "SHER Free Use & Proprietary Software License"
 repository = "https://github.com/Mullassery/SHER-Process-Explorer"
 
 [workspace.dependencies]

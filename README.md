@@ -59,5 +59,6 @@ cargo test --workspace
 
 ## License
 
-Proprietary — see `LICENSE`. Free to use with explicit attribution to
-Georgi Mammen Mullassery.
+SHER Free Use & Proprietary Software License — see `LICENSE`. Free to use;
+proprietary source, no redistribution or relicensing. Copyright © 2026
+SHER. All rights reserved.

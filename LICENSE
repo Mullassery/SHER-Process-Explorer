@@ -1,22 +1,242 @@
-Proprietary License — Free to use with explicit attribution
+SHER FREE USE & PROPRIETARY SOFTWARE LICENSE
 
-Copyright © 2026 Georgi Mammen Mullassery
+Copyright © 2026 SHER. All rights reserved.
 
-Permission is granted to any person obtaining a copy of this software to use,
-copy, modify, and distribute this software and its documentation, provided that:
+1. DEFINITIONS
 
-1. The above copyright notice and this permission notice appear in all copies
-   or substantial portions of the software.
+"Software" means the software product, application, source code,
+binary distribution, documentation, assets, and associated materials
+distributed under this License.
 
-2. Explicit attribution to the original author (Georgi Mammen Mullassery) is
-   provided in any project documentation and significant code comments where
-   this software is used.
+"Licensor" means the copyright holder and owner of the Software.
 
-3. The software is provided "AS IS" without warranty of any kind, express or
-   implied, including but not limited to the warranties of merchantability,
-   fitness for a particular purpose, or non-infringement.
+"User" means any individual or organization obtaining or using the
+Software under this License.
 
-4. In no event shall the author be liable for any claim, damages, or other
-   liability arising from the use of this software.
+"Product" means the specific SHER product accompanying this License.
 
-For more information, visit: https://github.com/Mullassery
+2. GRANT OF LICENSE
+
+Subject to the terms and conditions of this License, the Licensor
+grants the User a limited, non-exclusive, non-transferable,
+non-sublicensable license to:
+
+(a) install and use the Software;
+
+(b) use the Software for personal, educational, research, internal
+    business, and commercial purposes;
+
+(c) make reasonable archival copies of the Software; and
+
+(d) use the Software on multiple devices owned or controlled by the
+    User, subject to any product-specific usage limits expressly
+    documented by the Licensor.
+
+This is a license to use the Software and does not constitute a sale,
+assignment, or transfer of ownership of the Software or its
+intellectual property.
+
+3. FREE USE
+
+Unless a Product-specific notice states otherwise, the Software may
+be used without payment of a license fee.
+
+The Licensor may offer paid editions, subscriptions, enterprise
+features, support services, or other commercial offerings associated
+with the Product.
+
+The existence of paid offerings does not, by itself, terminate the
+User's right to use a legitimately obtained free version of the
+Software in accordance with this License.
+
+4. PROPRIETARY SOFTWARE
+
+The Software is proprietary software.
+
+Except where expressly permitted by this License, the User is not
+granted any right to:
+
+(a) redistribute the Software;
+
+(b) publish or mirror the Software;
+
+(c) sell, rent, lease, sublicense, or otherwise transfer the
+    Software;
+
+(d) provide the Software as a hosted or managed service to third
+    parties;
+
+(e) incorporate substantial portions of the Software into another
+    product;
+
+(f) remove copyright, trademark, license, or attribution notices;
+
+(g) represent modified or derivative versions as the official
+    Software; or
+
+(h) use the Licensor's trademarks, product names, logos, or branding
+    in a manner suggesting endorsement or official affiliation.
+
+5. SOURCE CODE
+
+Source code may be made available by the Licensor for inspection,
+development, educational, research, or other purposes determined by
+the Licensor.
+
+Availability of source code does not, by itself, grant the User the
+right to redistribute, relicense, commercially distribute, or publish
+modified versions of that source code.
+
+Unless a separate written license expressly permits it, source code
+distributed under this License remains proprietary.
+
+6. MODIFICATIONS
+
+The User may modify a locally obtained copy of the Software for
+personal or internal development purposes, provided that:
+
+(a) the modified copy is not redistributed to third parties;
+
+(b) copyright and license notices are retained; and
+
+(c) the modified software is not represented as an official release
+    of the Product.
+
+Any right to distribute modified versions must be separately granted
+in writing by the Licensor.
+
+7. THIRD-PARTY COMPONENTS
+
+The Software may contain or depend upon third-party software.
+
+Third-party components may be subject to their own licenses.
+
+Nothing in this License is intended to restrict rights granted to the
+User under an applicable third-party license.
+
+Where required, applicable third-party licenses and notices will be
+provided with the Product.
+
+8. TRADEMARKS
+
+This License does not grant any rights to use the Licensor's
+trademarks, service marks, logos, product names, or other branding.
+
+"SHER" and individual SHER product names may be protected trademarks
+or trade names of the Licensor.
+
+Use of the names of the Software for truthful identification,
+including statements such as "works with SHER" or "developed using
+SHER", does not by itself constitute trademark permission where such
+use is otherwise lawful.
+
+9. NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT
+WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR
+DISCLAIMS ALL WARRANTIES, INCLUDING BUT NOT LIMITED TO WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+NON-INFRINGEMENT, ACCURACY, RELIABILITY, AND AVAILABILITY.
+
+THE LICENSOR DOES NOT WARRANT THAT THE SOFTWARE WILL BE ERROR-FREE,
+SECURE, UNINTERRUPTED, OR COMPATIBLE WITH EVERY HARDWARE,
+OPERATING SYSTEM, KERNEL, OR SOFTWARE ENVIRONMENT.
+
+10. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR
+SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES ARISING FROM OR
+RELATING TO THE USE OF, OR INABILITY TO USE, THE SOFTWARE.
+
+THE USER IS RESPONSIBLE FOR DETERMINING WHETHER THE SOFTWARE IS
+SUITABLE FOR THE USER'S PARTICULAR ENVIRONMENT AND USE CASE.
+
+11. SECURITY AND SYSTEM OPERATIONS
+
+Certain SHER products may interact with operating-system processes,
+files, networks, devices, system resources, or privileged APIs.
+
+The User is responsible for ensuring that use of such functionality
+is appropriate for the User's environment.
+
+The Software should not be interpreted as guaranteeing the safety,
+security, integrity, availability, or recoverability of the User's
+systems or data.
+
+12. TERMINATION
+
+This License remains effective for as long as the User complies with
+its terms.
+
+The License automatically terminates if the User materially breaches
+its terms.
+
+Upon termination, the User must cease use of the Software and delete
+copies that the User is not otherwise entitled to retain.
+
+Sections concerning ownership, intellectual property, trademarks,
+disclaimers, limitation of liability, and other provisions intended
+by their nature to survive termination shall survive termination.
+
+13. OWNERSHIP
+
+The Software, including its source code, object code, architecture,
+design, documentation, interfaces, algorithms, and associated
+intellectual property, remains the property of the Licensor and/or
+its respective rights holders.
+
+No ownership rights are transferred to the User by this License.
+
+14. CONTRIBUTIONS
+
+Unless a separate contribution agreement states otherwise, submission
+of code, documentation, bug fixes, or other material to the Project
+does not automatically transfer copyright ownership to the Licensor.
+
+Contributors must have the necessary rights to submit their
+contributions.
+
+The Licensor may establish separate contribution terms for individual
+SHER projects.
+
+15. LICENSE CHANGES
+
+The Licensor may release future versions of the Software under
+different license terms.
+
+Unless expressly stated otherwise, a particular version of the
+Software remains governed by the license accompanying that version.
+
+The Licensor may not retroactively impose a new license on copies
+already lawfully obtained under an earlier version without the
+User's consent.
+
+16. EXPORT AND LEGAL COMPLIANCE
+
+The User is responsible for complying with applicable laws and
+regulations governing the use, export, import, and distribution of
+the Software.
+
+17. SEVERABILITY
+
+If any provision of this License is determined to be invalid or
+unenforceable, the remaining provisions shall remain in effect.
+
+18. ENTIRE AGREEMENT
+
+This License constitutes the agreement governing use of the Software
+unless a separate written agreement expressly supersedes or modifies
+it.
+
+19. CONTACT
+
+For licensing, commercial, enterprise, or other permissions not
+granted by this License, contact the Licensor through the official
+SHER project contact channel.
+
+20. COPYRIGHT NOTICE
+
+Copyright © 2026 SHER. All rights reserved.
