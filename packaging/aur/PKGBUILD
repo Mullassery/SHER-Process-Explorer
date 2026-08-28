@@ -1,0 +1,35 @@
+# Maintainer: Georgi Mammen Mullassery <mullassery@gmail.com>
+#
+# Builds directly from the git repository rather than a tagged release
+# tarball, since there is no tagged release yet - standard AUR practice
+# for a project at this stage (the "-git" package naming convention).
+pkgname=sher-process-explorer-git
+pkgver=r1.0000000
+pkgrel=1
+pkgdesc="Evidence-based Linux process explorer — answers what a process is doing and why, not just what top/ps show (git version)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/Mullassery/SHER-Process-Explorer"
+license=('custom:SHER Free Use & Proprietary Software License')
+depends=('glibc')
+makedepends=('cargo' 'git')
+provides=('sher-process-explorer')
+conflicts=('sher-process-explorer')
+source=("$pkgname::git+https://github.com/Mullassery/SHER-Process-Explorer.git")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd "$pkgname"
+    printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+    cd "$pkgname"
+    cargo build --release --locked -p sher-pe-cli
+}
+
+package() {
+    cd "$pkgname"
+    install -Dm755 target/release/sher "$pkgdir/usr/bin/sher"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

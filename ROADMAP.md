@@ -209,7 +209,16 @@ post-mortems, and validated testing across Ubuntu, Fedora, Debian, and Arch.
   `cargo generate-rpm -p crates/sher-pe-cli` produces a package, `rpm -i`
   installs it cleanly, and the installed `/usr/bin/sher` correctly runs
   `ps`/`system`/`kill`/`export` against the container's real `/proc`.
-- AUR, daemon mode, and multi-distro validation beyond Debian/Fedora —
+- AUR PKGBUILD ✅ — `packaging/aur/PKGBUILD`, a `-git` package (builds
+  from this repository's git history directly via `source=(...git+https://...)`
+  and a `pkgver()` derived from `git rev-list`/`git rev-parse`, since
+  there's no tagged release yet — standard AUR convention for a project
+  at this stage). Verified end-to-end on real Arch Linux (`archlinux:latest`):
+  `makepkg -s` clones the real repo, builds with `cargo build --release
+  --locked`, and packages `sher`; `pacman -U` installs it cleanly, and
+  the installed `/usr/bin/sher` runs correctly against the container's
+  real `/proc`.
+- Daemon mode and multi-distro validation beyond Debian/Fedora/Arch —
   pending.
 
 ## Phase 9 — Quick wins from a PyQt6 rebuild spec review
