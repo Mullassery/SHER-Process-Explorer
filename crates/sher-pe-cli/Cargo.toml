@@ -41,3 +41,13 @@ assets = [
     ["target/release/sher", "usr/bin/", "755"],
     ["../../README.md", "usr/share/doc/sher-process-explorer/README.md", "644"],
 ]
+
+[package.metadata.generate-rpm]
+name = "sher-process-explorer"
+license = "SHER Free Use & Proprietary Software License"
+summary = "The `sher` CLI for SHER Process Explorer."
+assets = [
+    { source = "target/release/sher", dest = "/usr/bin/sher", mode = "755" },
+    { source = "../../README.md", dest = "/usr/share/doc/sher-process-explorer/README.md", mode = "644", doc = true },
+    { source = "../../LICENSE", dest = "/usr/share/doc/sher-process-explorer/LICENSE", mode = "644", doc = true },
+]

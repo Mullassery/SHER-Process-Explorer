@@ -202,7 +202,14 @@ post-mortems, and validated testing across Ubuntu, Fedora, Debian, and Arch.
   SHER license text (not truncated), and the installed `/usr/bin/sher`
   correctly runs `ps`/`system`/`kill`/`export` against the container's
   real `/proc` — not just `--version`/`--help`.
-- `.rpm`, AUR, daemon mode, and multi-distro validation beyond Debian —
+- `.rpm` via `cargo-generate-rpm` ✅ — `[package.metadata.generate-rpm]`
+  in `crates/sher-pe-cli/Cargo.toml` (license, summary, and the same
+  `usr/bin/sher` + README/LICENSE doc assets as the `.deb`). Verified
+  end-to-end on real Fedora (`fedora:40`) for both `arm64` and `amd64`:
+  `cargo generate-rpm -p crates/sher-pe-cli` produces a package, `rpm -i`
+  installs it cleanly, and the installed `/usr/bin/sher` correctly runs
+  `ps`/`system`/`kill`/`export` against the container's real `/proc`.
+- AUR, daemon mode, and multi-distro validation beyond Debian/Fedora —
   pending.
 
 ## Phase 9 — Quick wins from a PyQt6 rebuild spec review
