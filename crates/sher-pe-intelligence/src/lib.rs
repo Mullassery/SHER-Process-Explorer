@@ -333,6 +333,23 @@ impl ProcessIntelligence {
         self.adapter.container_info(pid)
     }
 
+    /// Journal entries for the systemd unit that owns `pid`, most recent
+    /// `max_lines`, for chronological correlation with `timeline(pid)`.
+    pub fn journal_entries(
+        &self,
+        pid: Pid,
+        max_lines: usize,
+    ) -> Result<Vec<sher_pe_model::LogEntry>> {
+        self.adapter.journal_entries(pid, max_lines)
+    }
+
+    /// Kernel-log lines that mention `pid` or its process name —
+    /// best-effort, not a certainty (see
+    /// `sher_pe_telemetry::linux::kernel_log::correlate_kernel_lines`).
+    pub fn kernel_log_for(&self, pid: Pid) -> Result<Vec<String>> {
+        self.adapter.kernel_log_for(pid)
+    }
+
     /// A short, opt-in stack-sampling profile of `pid` via `perf`
     /// (`Tier::Profile`). Blocks for roughly `duration` while the sample
     /// runs — not something to call from a UI's continuous refresh loop.
@@ -448,6 +465,16 @@ mod tests {
             pid: Pid,
         ) -> sher_pe_telemetry::Result<Option<sher_pe_model::ContainerInfo>> {
             self.0.container_info(pid)
+        }
+        fn journal_entries(
+            &self,
+            pid: Pid,
+            max_lines: usize,
+        ) -> sher_pe_telemetry::Result<Vec<sher_pe_model::LogEntry>> {
+            self.0.journal_entries(pid, max_lines)
+        }
+        fn kernel_log_for(&self, pid: Pid) -> sher_pe_telemetry::Result<Vec<String>> {
+            self.0.kernel_log_for(pid)
         }
     }
 

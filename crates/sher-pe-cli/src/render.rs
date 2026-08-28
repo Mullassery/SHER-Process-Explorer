@@ -277,6 +277,71 @@ pub fn investigate(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
     0
 }
 
+/// `sher timeline <pid>` — recorded lifecycle events merged
+/// chronologically with real journald entries for the process's systemd
+/// unit, plus a separately-labeled best-effort kernel-log correlation
+/// section (kept separate rather than merged in, since `dmesg`'s
+/// timestamps aren't reliably comparable to journald's real epoch time).
+pub fn timeline(intel: &ProcessIntelligence, pid: Pid, journal_lines: usize, json: bool) -> i32 {
+    if intel.process(pid).is_none() {
+        return not_found_error(pid);
+    }
+
+    let events = intel.timeline(pid);
+    let journal = intel
+        .journal_entries(pid, journal_lines)
+        .unwrap_or_default();
+    let kernel_log = intel.kernel_log_for(pid).unwrap_or_default();
+
+    if json {
+        #[derive(serde::Serialize)]
+        struct Timeline {
+            events: Vec<sher_pe_model::TimelineEvent>,
+            journal: Vec<sher_pe_model::LogEntry>,
+            kernel_log: Vec<String>,
+        }
+        print_json_or(
+            json,
+            &Timeline {
+                events,
+                journal,
+                kernel_log,
+            },
+            || {},
+        );
+        return 0;
+    }
+
+    enum Item<'a> {
+        Event(&'a sher_pe_model::TimelineEvent),
+        Log(&'a sher_pe_model::LogEntry),
+    }
+    let mut items: Vec<(i64, Item)> = Vec::with_capacity(events.len() + journal.len());
+    items.extend(events.iter().map(|e| (e.at * 1_000_000, Item::Event(e))));
+    items.extend(journal.iter().map(|l| (l.at_us, Item::Log(l))));
+    items.sort_by_key(|(at_us, _)| *at_us);
+
+    if items.is_empty() {
+        println!("(no recorded lifecycle events or journal entries for pid {pid} yet)");
+    }
+    for (at_us, item) in &items {
+        let secs = at_us / 1_000_000;
+        match item {
+            Item::Event(e) => println!("[{secs}] EVENT  {}", e.description),
+            Item::Log(l) => println!("[{secs}] LOG    {}", l.message),
+        }
+    }
+
+    if !kernel_log.is_empty() {
+        println!("\n=== Kernel log (best-effort correlation by pid/name, not merged into the timeline above) ===");
+        for line in &kernel_log {
+            println!("{line}");
+        }
+    }
+
+    0
+}
+
 /// `sher trace <pid>` — a short syscall-count sample via `strace -c`
 /// (`Tier::ShortSample`). Blocks for roughly `duration_secs`.
 pub fn trace(intel: &ProcessIntelligence, pid: Pid, duration_secs: u64, json: bool) -> i32 {

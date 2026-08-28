@@ -41,6 +41,16 @@ enum Command {
     },
     /// Run every "why" rule against one process.
     Investigate { pid: Pid },
+    /// Chronological view of a process's life: recorded lifecycle events
+    /// (started/exited/memory-growth/etc.) merged with real journald
+    /// entries for its systemd unit, plus a best-effort kernel-log
+    /// correlation section.
+    Timeline {
+        pid: Pid,
+        /// Max journal entries to fetch (most recent).
+        #[arg(long, default_value_t = 200)]
+        journal_lines: usize,
+    },
     /// Syscall-count breakdown via `strace -c` (`Tier::ShortSample`).
     /// Requires `strace` and `timeout` installed, and ptrace permission
     /// for this pid (same-uid or `CAP_SYS_PTRACE`).
@@ -158,6 +168,9 @@ fn main() {
         Command::Inspect { pid } => render::inspect(&intel, pid, cli.json),
         Command::Why { pid, aspect } => render::why(&intel, pid, aspect, cli.json),
         Command::Investigate { pid } => render::investigate(&intel, pid, cli.json),
+        Command::Timeline { pid, journal_lines } => {
+            render::timeline(&intel, pid, journal_lines, cli.json)
+        }
         Command::Trace { pid, duration_secs } => {
             render::trace(&intel, pid, duration_secs, cli.json)
         }

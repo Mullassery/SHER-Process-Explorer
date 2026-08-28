@@ -522,6 +522,16 @@ mod tests {
         ) -> sher_pe_telemetry::Result<Option<sher_pe_model::ContainerInfo>> {
             self.0.container_info(pid)
         }
+        fn journal_entries(
+            &self,
+            pid: PidType,
+            max_lines: usize,
+        ) -> sher_pe_telemetry::Result<Vec<sher_pe_model::LogEntry>> {
+            self.0.journal_entries(pid, max_lines)
+        }
+        fn kernel_log_for(&self, pid: PidType) -> sher_pe_telemetry::Result<Vec<String>> {
+            self.0.kernel_log_for(pid)
+        }
     }
 
     fn new_intelligence() -> (Arc<MockTelemetryAdapter>, ProcessIntelligence) {

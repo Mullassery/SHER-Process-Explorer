@@ -30,9 +30,10 @@ enum DetailTab {
     Network,
     Disk,
     Security,
+    Timeline,
 }
 
-const ALL_TABS: [DetailTab; 8] = [
+const ALL_TABS: [DetailTab; 9] = [
     DetailTab::Overview,
     DetailTab::Memory,
     DetailTab::Cpu,
@@ -41,6 +42,7 @@ const ALL_TABS: [DetailTab; 8] = [
     DetailTab::Network,
     DetailTab::Disk,
     DetailTab::Security,
+    DetailTab::Timeline,
 ];
 
 impl DetailTab {
@@ -53,6 +55,7 @@ impl DetailTab {
             DetailTab::Files => "Files",
             DetailTab::Network => "Network",
             DetailTab::Disk => "Disk I/O",
+            DetailTab::Timeline => "Timeline",
             DetailTab::Security => "Security",
         }
     }
@@ -245,6 +248,7 @@ impl SherApp {
             DetailTab::Network => self.draw_network(ui, pid),
             DetailTab::Disk => self.draw_disk(ui, pid),
             DetailTab::Security => self.draw_security(ui, pid),
+            DetailTab::Timeline => self.draw_timeline(ui, pid),
         }
     }
 
@@ -645,6 +649,74 @@ impl SherApp {
                     format!("unavailable: {err}"),
                 );
             }
+        }
+    }
+
+    /// Recorded lifecycle events merged chronologically with real
+    /// journald entries for the process's systemd unit, plus a
+    /// separately-labeled best-effort kernel-log correlation (kept
+    /// separate rather than merged in — `dmesg`'s timestamps aren't
+    /// reliably comparable to journald's real epoch time).
+    fn draw_timeline(&mut self, ui: &mut egui::Ui, pid: Pid) {
+        let events = self.intel.timeline(pid);
+        let journal = self.intel.journal_entries(pid, 200).unwrap_or_default();
+        let kernel_log = self.intel.kernel_log_for(pid).unwrap_or_default();
+
+        enum Item<'a> {
+            Event(&'a sher_pe_model::TimelineEvent),
+            Log(&'a sher_pe_model::LogEntry),
+        }
+        let mut items: Vec<(i64, Item)> = Vec::with_capacity(events.len() + journal.len());
+        items.extend(events.iter().map(|e| (e.at * 1_000_000, Item::Event(e))));
+        items.extend(journal.iter().map(|l| (l.at_us, Item::Log(l))));
+        items.sort_by_key(|(at_us, _)| *at_us);
+
+        if items.is_empty() {
+            ui.weak("(no recorded lifecycle events or journal entries yet)");
+        } else {
+            egui::ScrollArea::vertical()
+                .max_height(400.0)
+                .id_salt("timeline_scroll")
+                .show(ui, |ui| {
+                    egui::Grid::new("timeline_grid")
+                        .num_columns(3)
+                        .striped(true)
+                        .show(ui, |ui| {
+                            ui.strong("Time");
+                            ui.strong("Kind");
+                            ui.strong("Description");
+                            ui.end_row();
+                            for (at_us, item) in &items {
+                                let secs = at_us / 1_000_000;
+                                match item {
+                                    Item::Event(e) => {
+                                        ui.label(secs.to_string());
+                                        ui.label("event");
+                                        ui.label(&e.description);
+                                    }
+                                    Item::Log(l) => {
+                                        ui.label(secs.to_string());
+                                        ui.label("log");
+                                        ui.label(&l.message);
+                                    }
+                                }
+                                ui.end_row();
+                            }
+                        });
+                });
+        }
+
+        if !kernel_log.is_empty() {
+            ui.separator();
+            ui.label("Kernel log (best-effort correlation, not merged into the timeline above):");
+            egui::ScrollArea::vertical()
+                .max_height(200.0)
+                .id_salt("kernel_log_scroll")
+                .show(ui, |ui| {
+                    for line in &kernel_log {
+                        ui.label(line);
+                    }
+                });
         }
     }
 }
