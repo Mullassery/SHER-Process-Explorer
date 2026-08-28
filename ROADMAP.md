@@ -226,4 +226,19 @@ evidence-typed `Confidence` system) are left as-is.
   because that call site is Linux-`cfg`-gated and had never been compiled
   for real until this Linux container run. Fixed to `["sched", "signal",
   "user"]`.
-- Export snapshots + diagnostic reports — pending.
+- Export snapshots + diagnostic reports ✅ — `DiagnosticReport`
+  (`sher-pe-model`) bundles a process's full detail (snapshot, family
+  rollup, threads, files, connections, cgroup, namespaces, security,
+  systemd unit, container, scheduler stats, disk I/O, timeline, journal
+  entries, kernel-log correlation), every "why" finding, and the
+  system-wide overview into one JSON document. Assembled by
+  `sher_pe_investigation::diagnostic_report` (lives there, not on
+  `ProcessIntelligence`, since it needs `why_*`'s `Finding`s and
+  `sher-pe-intelligence` can't depend on `sher-pe-investigation` without a
+  cycle). Exposed as `sher export <pid> [--output <path>]` (stdout by
+  default) and an "Export diagnostic report" button in the GUI's Overview
+  tab (writes `sher-report-<pid>.json` to the working directory — no
+  native file-dialog dependency this pass). Verified end-to-end on real
+  Linux: exported JSON for a real process correctly contains its process
+  detail, 4 findings, and the live system process count; a nonexistent
+  pid returns a typed not-found error, not an empty or partial report.

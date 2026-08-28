@@ -7,6 +7,7 @@
 pub mod cgroup;
 pub mod container;
 pub mod cpu;
+pub mod diagnostic;
 pub mod evidence;
 pub mod files;
 pub mod io;
@@ -28,6 +29,7 @@ pub mod tree;
 pub use cgroup::{CgroupInfo, CgroupVersion};
 pub use container::{ContainerInfo, ContainerRuntime};
 pub use cpu::CpuStats;
+pub use diagnostic::DiagnosticReport;
 pub use evidence::{Confidence, Evidence, Finding, Severity};
 pub use files::{FileKind, OpenFile};
 pub use io::DiskIoStats;

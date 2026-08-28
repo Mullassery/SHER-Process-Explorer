@@ -96,6 +96,10 @@ pub struct SherApp {
     /// The outcome of the most recently *sent* signal, shown until the
     /// next signal is sent or a different process is selected.
     last_signal_result: Option<(Pid, Signal, Result<(), String>)>,
+    /// The outcome of the most recent "Export report" click: the written
+    /// path, or an error. No file dialog dependency this pass — the file
+    /// always goes to the current working directory, named after the pid.
+    last_export_result: Option<(Pid, Result<std::path::PathBuf, String>)>,
 }
 
 impl SherApp {
@@ -114,6 +118,7 @@ impl SherApp {
             cached_syscalls: None,
             pending_signal: None,
             last_signal_result: None,
+            last_export_result: None,
         };
         app.refresh();
         app
@@ -251,6 +256,7 @@ impl SherApp {
                     self.cached_syscalls = None;
                     self.pending_signal = None;
                     self.last_signal_result = None;
+                    self.last_export_result = None;
                 }
             });
         }
@@ -414,6 +420,38 @@ impl SherApp {
                         ui.colored_label(
                             egui::Color32::from_rgb(220, 80, 80),
                             format!("Failed to send {signal} to pid {pid}: {err}"),
+                        );
+                    }
+                }
+            }
+        }
+
+        ui.separator();
+        if ui.button("Export diagnostic report").clicked() {
+            let result = sher_pe_investigation::diagnostic_report(&self.intel, pid)
+                .ok_or_else(|| format!("pid {pid} is no longer running"))
+                .and_then(|report| serde_json::to_string_pretty(&report).map_err(|e| e.to_string()))
+                .and_then(|json| {
+                    let path = std::path::PathBuf::from(format!("sher-report-{pid}.json"));
+                    std::fs::write(&path, json)
+                        .map(|()| path)
+                        .map_err(|e| e.to_string())
+                });
+            self.last_export_result = Some((pid, result));
+        }
+        if let Some((result_pid, result)) = &self.last_export_result {
+            if *result_pid == pid {
+                match result {
+                    Ok(path) => {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(100, 180, 100),
+                            format!("Wrote {}", path.display()),
+                        );
+                    }
+                    Err(err) => {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(220, 80, 80),
+                            format!("Export failed: {err}"),
                         );
                     }
                 }

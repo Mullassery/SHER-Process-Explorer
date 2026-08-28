@@ -94,6 +94,15 @@ enum Command {
         #[arg(long)]
         i_accept_the_overhead: bool,
     },
+    /// Export a full diagnostic report for one process (process detail,
+    /// threads, files, network, security, container, timeline, journal,
+    /// kernel-log correlation, and every "why" finding) as one JSON
+    /// document. Writes to stdout unless `--output` is given.
+    Export {
+        pid: Pid,
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+    },
     /// Send a POSIX signal to a process (default: SIGTERM). Prompts for
     /// interactive confirmation unless `--yes` is passed — this sends a
     /// real signal to a real process, not a simulation.
@@ -227,6 +236,7 @@ fn main() {
         Command::Kill { pid, signal, yes } => {
             render::kill(&intel, pid, signal.into(), yes, cli.json)
         }
+        Command::Export { pid, output } => render::export(&intel, pid, output.as_deref()),
     };
     std::process::exit(exit_code);
 }

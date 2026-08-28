@@ -333,6 +333,41 @@ pub fn investigate(intel: &ProcessIntelligence, pid: Pid) -> Vec<Finding> {
     ]
 }
 
+/// Assembles a single exportable `DiagnosticReport` for `pid`: the same
+/// data already visible across `sher inspect`/`sher timeline`/`sher
+/// investigate` and the GUI's detail tabs, bundled into one JSON document
+/// for sharing (e.g. attaching to a bug report). Lives here rather than on
+/// `ProcessIntelligence` itself since it needs `why_*`'s `Finding`s, and
+/// `sher-pe-intelligence` cannot depend on this crate (this crate already
+/// depends on it — the reverse would be circular).
+pub fn diagnostic_report(
+    intel: &ProcessIntelligence,
+    pid: Pid,
+) -> Option<sher_pe_model::DiagnosticReport> {
+    let process = intel.process(pid)?.clone();
+    Some(sher_pe_model::DiagnosticReport {
+        generated_at: now_unix(),
+        pid,
+        process,
+        family_rollup: intel.family_rollup(pid),
+        threads: intel.threads(pid).unwrap_or_default(),
+        open_files: intel.open_files(pid).unwrap_or_default(),
+        connections: intel.connections(pid).unwrap_or_default(),
+        cgroup: intel.cgroup(pid).ok().flatten(),
+        namespaces: intel.namespaces(pid).ok(),
+        security: intel.security(pid).ok(),
+        systemd_unit: intel.systemd_unit(pid).ok().flatten(),
+        container: intel.container_info(pid).ok().flatten(),
+        scheduler_stats: intel.scheduler_stats(pid).ok(),
+        disk_io: intel.disk_io(pid).ok(),
+        timeline: intel.timeline(pid),
+        journal_entries: intel.journal_entries(pid, 200).unwrap_or_default(),
+        kernel_log: intel.kernel_log_for(pid).unwrap_or_default(),
+        findings: investigate(intel, pid),
+        system: intel.system_overview().unwrap_or_default(),
+    })
+}
+
 /// Correlates a process's `Exited` timeline event against its memory-growth
 /// history and any OOM-kill lines already extracted from the kernel log
 /// (see `sher_pe_telemetry::linux::kernel_log::oom_kill_lines`; this
@@ -803,6 +838,24 @@ mod tests {
         let findings = investigate(&intel, 999);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].confidence, Confidence::Unknown);
+    }
+
+    #[test]
+    fn diagnostic_report_bundles_process_and_findings_for_a_live_pid() {
+        let (mock, mut intel) = new_intelligence();
+        mock.set_process(snap(1, 0, 100, 1000));
+        intel.refresh_at(1000).unwrap();
+
+        let report = diagnostic_report(&intel, 1).expect("pid 1 is live");
+        assert_eq!(report.pid, 1);
+        assert_eq!(report.process.pid, 1);
+        assert_eq!(report.findings.len(), 4);
+    }
+
+    #[test]
+    fn diagnostic_report_is_none_for_missing_pid() {
+        let (_mock, intel) = new_intelligence();
+        assert!(diagnostic_report(&intel, 999).is_none());
     }
 
     #[test]

@@ -501,6 +501,41 @@ pub fn deep_trace(intel: &ProcessIntelligence, pid: Pid, duration_secs: u64, jso
     }
 }
 
+/// `sher export <pid>` — a full diagnostic report as one JSON document.
+/// Writes to `output` if given, otherwise stdout (so it composes with
+/// shell redirection/piping the same way every other `sher` command does).
+pub fn export(intel: &ProcessIntelligence, pid: Pid, output: Option<&std::path::Path>) -> i32 {
+    let Some(report) = sher_pe_investigation::diagnostic_report(intel, pid) else {
+        return not_found_error(pid);
+    };
+    let json = match serde_json::to_string_pretty(&report) {
+        Ok(json) => json,
+        Err(err) => {
+            eprintln!("sher: failed to serialize diagnostic report: {err}");
+            return 1;
+        }
+    };
+    match output {
+        Some(path) => match std::fs::write(path, &json) {
+            Ok(()) => {
+                println!(
+                    "Wrote diagnostic report for pid {pid} to {}",
+                    path.display()
+                );
+                0
+            }
+            Err(err) => {
+                eprintln!("sher: failed to write {}: {err}", path.display());
+                1
+            }
+        },
+        None => {
+            println!("{json}");
+            0
+        }
+    }
+}
+
 /// `sher kill <pid>` — sends a real POSIX signal to a real process.
 /// Prompts for interactive confirmation unless `yes` is set, since this is
 /// the one CLI command that changes system state rather than just reading
