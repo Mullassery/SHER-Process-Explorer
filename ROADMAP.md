@@ -246,9 +246,15 @@ post-mortems, and validated testing across Ubuntu, Fedora, Debian, and Arch.
   confirmed: graceful shutdown on `SIGTERM` (real log line observed,
   not just default signal-kill behavior), and the correct
   root-vs-non-root default database path.
-- Multi-distro validation beyond Debian/Fedora/Arch (i.e. explicit
-  Ubuntu coverage as its own item, distinct from the containers already
-  used throughout this project's validation) — pending.
+- Multi-distro validation ✅ — Ubuntu (`ubuntu:24.04`), Fedora
+  (`fedora:40`), Debian (`debian:bookworm-slim`, the `.deb` test target),
+  and Arch Linux (`archlinux:latest`, the AUR test target) all confirmed.
+  On Ubuntu specifically: `sher --version`/`ps`/`system`, and the full
+  `sherd` + `sher kill` + `sher history` + `sher export` pipeline
+  end-to-end — real snapshots and a real `Exited` event recorded after
+  killing a real process, all against Ubuntu's real `/proc`.
+
+**Phase 8 complete.**
 
 ## Phase 9 — Quick wins from a PyQt6 rebuild spec review
 
