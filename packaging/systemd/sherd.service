@@ -1,0 +1,21 @@
+[Unit]
+Description=SHER Process Explorer background history daemon
+Documentation=https://github.com/Mullassery/SHER-Process-Explorer
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/sherd
+Restart=on-failure
+RestartSec=5
+# sherd reads /proc for every process on the system, not just its own
+# user's - CAP_SYS_PTRACE lets it see other users' /proc/[pid] fields
+# without running the whole daemon as root.
+AmbientCapabilities=CAP_SYS_PTRACE
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/sher
+StateDirectory=sher
+
+[Install]
+WantedBy=multi-user.target

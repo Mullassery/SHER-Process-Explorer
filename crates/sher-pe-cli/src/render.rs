@@ -501,6 +501,83 @@ pub fn deep_trace(intel: &ProcessIntelligence, pid: Pid, duration_secs: u64, jso
     }
 }
 
+/// `sher history <pid>` — long-term history from `sherd`'s persistent
+/// SQLite database, independent of whether `pid` is still alive or how
+/// long ago it was sampled (unlike `timeline`, which only sees this
+/// process's own short-lived, in-memory `ProcessIntelligence` history).
+pub fn history(pid: Pid, since_secs: i64, db_path: &std::path::Path, json: bool) -> i32 {
+    let store = match sher_pe_history::HistoryStore::open(db_path) {
+        Ok(store) => store,
+        Err(err) => {
+            eprintln!(
+                "sher: failed to open history database at {}: {err}",
+                db_path.display()
+            );
+            eprintln!("(is sherd running? see `sherd --help`)");
+            return 1;
+        }
+    };
+
+    let since = now_unix() - since_secs;
+    let snapshots = match store.snapshots_for(pid, since) {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("sher: failed to read snapshot history: {err}");
+            return 1;
+        }
+    };
+    let events = match store.events_for(pid, since) {
+        Ok(e) => e,
+        Err(err) => {
+            eprintln!("sher: failed to read timeline history: {err}");
+            return 1;
+        }
+    };
+
+    if json {
+        #[derive(serde::Serialize)]
+        struct History {
+            snapshots: Vec<(i64, sher_pe_model::ProcessSnapshot)>,
+            events: Vec<sher_pe_model::TimelineEvent>,
+        }
+        print_json_or(true, &History { snapshots, events }, || {});
+        return 0;
+    }
+
+    if snapshots.is_empty() && events.is_empty() {
+        println!(
+            "(no persisted history for pid {pid} in the last {since_secs}s — either sherd \
+             isn't running, or this pid has no recorded activity in that window)"
+        );
+        return 0;
+    }
+
+    println!("=== Snapshots ({}) ===", snapshots.len());
+    for (sampled_at, snap) in &snapshots {
+        println!(
+            "[{sampled_at}] {} rss={} KB cpu={:.1}% state={:?}",
+            snap.name,
+            snap.memory.rss / 1024,
+            snap.cpu.percent,
+            snap.state
+        );
+    }
+
+    println!("\n=== Timeline events ({}) ===", events.len());
+    for event in &events {
+        println!("[{}] {}", event.at, event.description);
+    }
+
+    0
+}
+
+fn now_unix() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
 /// `sher export <pid>` — a full diagnostic report as one JSON document.
 /// Writes to `output` if given, otherwise stdout (so it composes with
 /// shell redirection/piping the same way every other `sher` command does).

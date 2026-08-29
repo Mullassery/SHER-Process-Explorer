@@ -218,8 +218,37 @@ post-mortems, and validated testing across Ubuntu, Fedora, Debian, and Arch.
   --locked`, and packages `sher`; `pacman -U` installs it cleanly, and
   the installed `/usr/bin/sher` runs correctly against the container's
   real `/proc`.
-- Daemon mode and multi-distro validation beyond Debian/Fedora/Arch —
-  pending.
+- Daemon mode: persistent SQLite history ✅ — a new `sher-pe-history`
+  crate (`HistoryStore`, pure persistence over `sher-pe-model` types, no
+  telemetry dependency) backed by real SQLite (`rusqlite`'s bundled
+  build, no system `libsqlite3` dependency) with two tables
+  (`snapshots`, `timeline_events`), indexed by pid and time, with
+  `prune_older_than` for bounded retention. A new `sherd` binary
+  (`sher-pe-daemon` crate) runs `ProcessIntelligence::refresh_at` on a
+  fixed interval and persists every current snapshot plus each tick's
+  *new* timeline events (`ProcessIntelligence::recent_timeline_events`,
+  a small new API — filters by `at >= since` across all pids, avoiding
+  re-persisting the same events every tick) — meant to run under
+  systemd (`packaging/systemd/sherd.service`), not self-daemonizing.
+  Defaults to `/var/lib/sher/history.db` when run as root,
+  `~/.local/share/sher/history.db` otherwise. `sher history <pid>
+  [--since-secs] [--db]` (CLI) reads it back — the key difference from
+  `sher timeline` is that this works for a pid that has since exited
+  and reaches back further than `ProcessIntelligence`'s in-memory,
+  capacity-bounded history.
+
+  Verified end-to-end on real Linux: ran `sherd` against a real `sleep`
+  process, confirmed real snapshots accumulate every tick and a
+  `Started` event is recorded; killed the target process and confirmed
+  `sherd`'s very next tick recorded a real `Exited` event and `sher
+  history` still shows the full snapshot history plus that exit — the
+  actual crash-post-mortem use case this feature exists for. Also
+  confirmed: graceful shutdown on `SIGTERM` (real log line observed,
+  not just default signal-kill behavior), and the correct
+  root-vs-non-root default database path.
+- Multi-distro validation beyond Debian/Fedora/Arch (i.e. explicit
+  Ubuntu coverage as its own item, distinct from the containers already
+  used throughout this project's validation) — pending.
 
 ## Phase 9 — Quick wins from a PyQt6 rebuild spec review
 

@@ -277,6 +277,20 @@ impl ProcessIntelligence {
             .collect()
     }
 
+    /// Every recorded timeline event across all pids at or after `since`
+    /// (unix seconds), oldest first. Unlike `timeline(pid)`, this isn't
+    /// scoped to one process — it exists for a caller (e.g.
+    /// `sher-pe-daemon`) that persists new events each tick and needs
+    /// "what's new since last time," not "everything for this pid,"
+    /// which would re-persist the same events on every tick.
+    pub fn recent_timeline_events(&self, since: i64) -> Vec<TimelineEvent> {
+        self.timeline
+            .iter()
+            .filter(|event| event.at >= since)
+            .cloned()
+            .collect()
+    }
+
     /// Live per-thread detail for `pid`, read fresh from the adapter. This
     /// is *not* part of the tracked history — thread-level detail is
     /// comparatively expensive and is only needed on demand (by
@@ -571,6 +585,26 @@ mod tests {
         let events = intel.timeline(1);
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0].kind, TimelineEventKind::Started));
+    }
+
+    #[test]
+    fn recent_timeline_events_only_returns_events_at_or_after_since() {
+        let (mock, mut intel) = new_intelligence();
+        mock.set_process(snap(1, 0, 100, 0, 1000));
+        intel.refresh_at(1000).unwrap();
+
+        mock.set_process(snap(2, 1, 200, 0, 500));
+        intel.refresh_at(2000).unwrap();
+
+        // Only the second tick's events (pid 2 Started + pid 1 NewChild),
+        // not pid 1's original Started event from the first tick.
+        let recent = intel.recent_timeline_events(2000);
+        assert_eq!(recent.len(), 2);
+        assert!(recent.iter().all(|e| e.at == 2000));
+
+        // Both ticks' events.
+        let all = intel.recent_timeline_events(0);
+        assert_eq!(all.len(), 3);
     }
 
     #[test]

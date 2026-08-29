@@ -16,6 +16,7 @@ sher-pe-model.workspace = true
 sher-pe-telemetry.workspace = true
 sher-pe-intelligence.workspace = true
 sher-pe-investigation.workspace = true
+sher-pe-history.workspace = true
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true

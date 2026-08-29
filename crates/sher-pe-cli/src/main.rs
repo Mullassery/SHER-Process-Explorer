@@ -114,6 +114,22 @@ enum Command {
         #[arg(long)]
         yes: bool,
     },
+    /// Long-term history for a process, persisted by `sherd` (the
+    /// background daemon) — unlike `timeline`, this works for a process
+    /// that has since exited, and reaches back further than
+    /// `ProcessIntelligence`'s in-memory, capacity-bounded history.
+    /// Requires `sherd` to have been running and sampling.
+    History {
+        pid: Pid,
+        /// Only show snapshots/events from the last N seconds.
+        #[arg(long, default_value_t = 86_400)]
+        since_secs: i64,
+        /// SQLite database path. Defaults to the same path `sherd` uses:
+        /// /var/lib/sher/history.db when run as root,
+        /// ~/.local/share/sher/history.db otherwise.
+        #[arg(long)]
+        db: Option<std::path::PathBuf>,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -167,6 +183,22 @@ fn reset_sigpipe() {
 
 #[cfg(not(unix))]
 fn reset_sigpipe() {}
+
+/// Same default as `sherd` (see `sher-pe-daemon/src/main.rs`) — `sher
+/// history` with no `--db` needs to find the same database `sherd` writes
+/// to by default.
+fn default_history_db_path() -> std::path::PathBuf {
+    #[cfg(unix)]
+    {
+        // SAFETY: geteuid() takes no arguments and cannot fail.
+        let is_root = unsafe { libc::geteuid() == 0 };
+        if is_root {
+            return std::path::PathBuf::from("/var/lib/sher/history.db");
+        }
+    }
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    std::path::PathBuf::from(home).join(".local/share/sher/history.db")
+}
 
 fn main() {
     reset_sigpipe();
@@ -237,6 +269,14 @@ fn main() {
             render::kill(&intel, pid, signal.into(), yes, cli.json)
         }
         Command::Export { pid, output } => render::export(&intel, pid, output.as_deref()),
+        Command::History {
+            pid,
+            since_secs,
+            db,
+        } => {
+            let db_path = db.unwrap_or_else(default_history_db_path);
+            render::history(pid, since_secs, &db_path, cli.json)
+        }
     };
     std::process::exit(exit_code);
 }

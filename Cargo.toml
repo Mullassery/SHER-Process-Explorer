@@ -5,8 +5,10 @@ members = [
     "crates/sher-pe-telemetry",
     "crates/sher-pe-intelligence",
     "crates/sher-pe-investigation",
+    "crates/sher-pe-history",
     "crates/sher-pe-cli",
     "crates/sher-pe-gui",
+    "crates/sher-pe-daemon",
 ]
 
 [workspace.package]
@@ -21,6 +23,7 @@ sher-pe-model = { path = "crates/sher-pe-model" }
 sher-pe-telemetry = { path = "crates/sher-pe-telemetry" }
 sher-pe-intelligence = { path = "crates/sher-pe-intelligence" }
 sher-pe-investigation = { path = "crates/sher-pe-investigation" }
+sher-pe-history = { path = "crates/sher-pe-history" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -31,6 +34,7 @@ clap = { version = "4", features = ["derive"] }
 nix = { version = "0.29", features = ["sched", "signal", "user"] }
 egui = "0.36"
 eframe = "0.36"
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 [profile.release]
 opt-level = 3

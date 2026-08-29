@@ -1,0 +1,14 @@
+[package]
+name = "sher-pe-history"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Persistent (SQLite) long-term process history for SHER Process Explorer's daemon mode."
+
+[dependencies]
+sher-pe-model.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+rusqlite.workspace = true
