@@ -361,6 +361,61 @@ impl ProcessIntelligence {
         self.adapter.environment(pid)
     }
 
+    /// Real mapped files (shared libraries, the executable, mapped data
+    /// files) for `pid` — "what does this process depend on."
+    pub fn mapped_files(&self, pid: Pid) -> Result<Vec<sher_pe_model::MappedFile>> {
+        self.adapter.mapped_files(pid)
+    }
+
+    /// Reverse lookup: every currently-live process with an open file
+    /// whose path contains `path_substring` — the "who has this file
+    /// open" question (`lsof <path>`'s core use case), which SHER's
+    /// per-pid `open_files` can't answer on its own since investigation
+    /// often starts from a symptom (a locked file, a stuck path), not a
+    /// pid. A substring match, not exact, since callers rarely know the
+    /// full path up front (e.g. just a filename or directory).
+    ///
+    /// Scans every live pid's open files, so this is more expensive than
+    /// a single-pid call — meant for on-demand use (a CLI command / GUI
+    /// action), not the continuous refresh loop.
+    pub fn who_has_file(&self, path_substring: &str) -> Vec<(Pid, sher_pe_model::OpenFile)> {
+        let mut matches = Vec::new();
+        for &pid in self.current.keys() {
+            let Ok(files) = self.adapter.open_files(pid) else {
+                continue;
+            };
+            for file in files {
+                if file.path.contains(path_substring) {
+                    matches.push((pid, file));
+                }
+            }
+        }
+        matches
+    }
+
+    /// Reverse lookup: every currently-live process with a connection
+    /// whose local address is bound to `port` — "who has this port"
+    /// (`lsof -i :<port>`'s core use case). Matches on the local address's
+    /// port suffix (the last `:`-separated field, which is always the
+    /// port regardless of how many colons an IPv6 address itself
+    /// contains, since the port is appended after the address is already
+    /// formatted).
+    pub fn who_has_port(&self, port: u16) -> Vec<(Pid, sher_pe_model::NetworkConnection)> {
+        let suffix = format!(":{port}");
+        let mut matches = Vec::new();
+        for &pid in self.current.keys() {
+            let Ok(conns) = self.adapter.connections(pid) else {
+                continue;
+            };
+            for conn in conns {
+                if conn.local_addr.ends_with(&suffix) {
+                    matches.push((pid, conn));
+                }
+            }
+        }
+        matches
+    }
+
     /// Live scheduler accounting (time running vs. time waiting for a
     /// CPU) for `pid`.
     pub fn scheduler_stats(&self, pid: Pid) -> Result<SchedulerStats> {
@@ -528,6 +583,12 @@ mod tests {
         }
         fn environment(&self, pid: Pid) -> sher_pe_telemetry::Result<Vec<sher_pe_model::EnvVar>> {
             self.0.environment(pid)
+        }
+        fn mapped_files(
+            &self,
+            pid: Pid,
+        ) -> sher_pe_telemetry::Result<Vec<sher_pe_model::MappedFile>> {
+            self.0.mapped_files(pid)
         }
     }
 
@@ -727,6 +788,69 @@ mod tests {
         let rollup = intel.family_rollup(1).expect("pid 1 exists");
         assert_eq!(rollup.process_count, 2);
         assert_eq!(rollup.rss, 3000);
+    }
+
+    #[test]
+    fn who_has_file_matches_by_substring_across_live_pids() {
+        let (mock, mut intel) = new_intelligence();
+        mock.set_process(snap(1, 0, 100, 0, 1000));
+        mock.set_process(snap(2, 0, 200, 0, 1000));
+        mock.set_open_files(
+            1,
+            vec![sher_pe_model::OpenFile {
+                fd: 3,
+                path: "/var/lock/app.lock".into(),
+                kind: sher_pe_model::FileKind::Regular,
+            }],
+        );
+        mock.set_open_files(
+            2,
+            vec![sher_pe_model::OpenFile {
+                fd: 4,
+                path: "/tmp/unrelated".into(),
+                kind: sher_pe_model::FileKind::Regular,
+            }],
+        );
+        intel.refresh_at(1000).unwrap();
+
+        let matches = intel.who_has_file("app.lock");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].0, 1);
+        assert_eq!(matches[0].1.path, "/var/lock/app.lock");
+    }
+
+    #[test]
+    fn who_has_port_matches_exact_port_suffix_not_a_substring() {
+        let (mock, mut intel) = new_intelligence();
+        mock.set_process(snap(1, 0, 100, 0, 1000));
+        mock.set_process(snap(2, 0, 200, 0, 1000));
+        mock.set_connections(
+            1,
+            vec![NetworkConnection {
+                protocol: Protocol::Tcp,
+                local_addr: "0.0.0.0:8080".into(),
+                remote_addr: "".into(),
+                state: ConnectionState::Listen,
+                inode: 1,
+            }],
+        );
+        // A port whose digits are a substring of 8080 ("80") must not
+        // false-positive match.
+        mock.set_connections(
+            2,
+            vec![NetworkConnection {
+                protocol: Protocol::Tcp,
+                local_addr: "0.0.0.0:80".into(),
+                remote_addr: "".into(),
+                state: ConnectionState::Listen,
+                inode: 2,
+            }],
+        );
+        intel.refresh_at(1000).unwrap();
+
+        let matches = intel.who_has_port(8080);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].0, 1);
     }
 
     #[test]

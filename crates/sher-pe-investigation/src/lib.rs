@@ -362,6 +362,7 @@ pub fn diagnostic_report(
         disk_io: intel.disk_io(pid).ok(),
         fd_limits: intel.fd_limits(pid).ok(),
         environment: intel.environment(pid).unwrap_or_default(),
+        mapped_files: intel.mapped_files(pid).unwrap_or_default(),
         timeline: intel.timeline(pid),
         journal_entries: intel.journal_entries(pid, 200).unwrap_or_default(),
         kernel_log: intel.kernel_log_for(pid).unwrap_or_default(),
@@ -589,6 +590,12 @@ mod tests {
             pid: PidType,
         ) -> sher_pe_telemetry::Result<Vec<sher_pe_model::EnvVar>> {
             self.0.environment(pid)
+        }
+        fn mapped_files(
+            &self,
+            pid: PidType,
+        ) -> sher_pe_telemetry::Result<Vec<sher_pe_model::MappedFile>> {
+            self.0.mapped_files(pid)
         }
     }
 

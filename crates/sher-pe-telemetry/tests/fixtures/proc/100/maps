@@ -1,0 +1,10 @@
+55f8f1a00000-55f8f1a05000 r--p 00000000 08:01 1234567                    /usr/bin/sherd
+55f8f1a05000-55f8f1a10000 r-xp 00005000 08:01 1234567                    /usr/bin/sherd
+55f8f1c00000-55f8f1c21000 rw-p 00000000 00:00 0                          [heap]
+7f2a3c000000-7f2a3c022000 r--p 00000000 08:01 2345678                    /usr/lib/x86_64-linux-gnu/libc.so.6
+7f2a3c022000-7f2a3c1a0000 r-xp 00022000 08:01 2345678                    /usr/lib/x86_64-linux-gnu/libc.so.6
+7f2a3c1a0000-7f2a3c1a8000 r--p 001a0000 08:01 2345678                    /usr/lib/x86_64-linux-gnu/libc.so.6
+7fff12345000-7fff12366000 rw-p 00000000 00:00 0                          [stack]
+7fff123a0000-7fff123a2000 r--p 00000000 00:00 0                          [vvar]
+7fff123a2000-7fff123a4000 r-xp 00000000 00:00 0                          [vdso]
+7f2a3c200000-7f2a3c210000 rw-p 00000000 00:00 0

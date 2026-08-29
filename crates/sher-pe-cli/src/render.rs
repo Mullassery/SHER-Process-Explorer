@@ -175,6 +175,7 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
             container: Option<sher_pe_model::ContainerInfo>,
             fd_limits: Option<sher_pe_model::FdLimits>,
             environment: Vec<sher_pe_model::EnvVar>,
+            mapped_files: Vec<sher_pe_model::MappedFile>,
         }
         let inspection = Inspection {
             process: process.clone(),
@@ -187,6 +188,7 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
             container: intel.container_info(pid).ok().flatten(),
             fd_limits: intel.fd_limits(pid).ok(),
             environment: intel.environment(pid).unwrap_or_default(),
+            mapped_files: intel.mapped_files(pid).unwrap_or_default(),
         };
         print_json_or(json, &inspection, || {});
         return 0;
@@ -230,6 +232,17 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
         println!("(detailed anon/file/shared/private breakdown unavailable on this kernel)");
     }
     println!("swap:     {} KB", process.memory.swap / 1024);
+
+    println!("\n=== Mapped Libraries/Files ===");
+    match intel.mapped_files(pid) {
+        Ok(files) if files.is_empty() => println!("  (none, or unavailable)"),
+        Ok(files) => {
+            for f in &files {
+                println!("  {:>10} KB  {}", f.size_bytes / 1024, f.path);
+            }
+        }
+        Err(err) => println!("  (unavailable: {err})"),
+    }
 
     println!("\n=== CPU ===");
     println!("percent:  {:.1}%", process.cpu.percent);
@@ -604,6 +617,96 @@ fn now_unix() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
+}
+
+/// `sher who-has <path>` / `sher who-has --port <port>` — reverse lookup:
+/// investigation often starts from a symptom (a stuck port, a locked
+/// file), not a pid.
+pub fn who_has(
+    intel: &ProcessIntelligence,
+    path: Option<String>,
+    port: Option<u16>,
+    json: bool,
+) -> i32 {
+    match (path, port) {
+        (Some(_), Some(_)) => {
+            eprintln!("sher: pass either a path or --port, not both");
+            2
+        }
+        (None, None) => {
+            eprintln!("sher: usage: sher who-has <path> | sher who-has --port <port>");
+            2
+        }
+        (Some(path_substring), None) => {
+            let matches = intel.who_has_file(&path_substring);
+            if json {
+                #[derive(serde::Serialize)]
+                struct Match {
+                    pid: Pid,
+                    process_name: String,
+                    file: sher_pe_model::OpenFile,
+                }
+                let results: Vec<Match> = matches
+                    .into_iter()
+                    .map(|(pid, file)| Match {
+                        pid,
+                        process_name: intel
+                            .process(pid)
+                            .map(|p| p.name.clone())
+                            .unwrap_or_default(),
+                        file,
+                    })
+                    .collect();
+                print_json_or(true, &results, || {});
+                return 0;
+            }
+            if matches.is_empty() {
+                println!("(no live process has a file matching '{path_substring}' open)");
+                return 0;
+            }
+            for (pid, file) in matches {
+                let name = intel.process(pid).map(|p| p.name.as_str()).unwrap_or("?");
+                println!("{pid:>8}  {name:<20}  fd {:>4}  {}", file.fd, file.path);
+            }
+            0
+        }
+        (None, Some(port)) => {
+            let matches = intel.who_has_port(port);
+            if json {
+                #[derive(serde::Serialize)]
+                struct Match {
+                    pid: Pid,
+                    process_name: String,
+                    connection: sher_pe_model::NetworkConnection,
+                }
+                let results: Vec<Match> = matches
+                    .into_iter()
+                    .map(|(pid, connection)| Match {
+                        pid,
+                        process_name: intel
+                            .process(pid)
+                            .map(|p| p.name.clone())
+                            .unwrap_or_default(),
+                        connection,
+                    })
+                    .collect();
+                print_json_or(true, &results, || {});
+                return 0;
+            }
+            if matches.is_empty() {
+                println!("(no live process has port {port} bound)");
+                return 0;
+            }
+            for (pid, conn) in matches {
+                let name = intel.process(pid).map(|p| p.name.as_str()).unwrap_or("?");
+                println!(
+                    "{pid:>8}  {name:<20}  {:?} {} [{:?}]",
+                    conn.protocol, conn.local_addr, conn.state
+                );
+            }
+            0
+        }
+    }
 }
 
 /// `sher export <pid>` — a full diagnostic report as one JSON document.

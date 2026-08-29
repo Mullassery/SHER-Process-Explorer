@@ -13,9 +13,9 @@ pub mod testing;
 use std::time::Duration;
 
 use sher_pe_model::{
-    CgroupInfo, ContainerInfo, DiskIoStats, EnvVar, FdLimits, HotFunction, LogEntry, NamespaceInfo,
-    NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats, SecurityContext, Signal,
-    SyscallStat, SystemOverview, ThreadSnapshot, TraceEvent,
+    CgroupInfo, ContainerInfo, DiskIoStats, EnvVar, FdLimits, HotFunction, LogEntry, MappedFile,
+    NamespaceInfo, NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats,
+    SecurityContext, Signal, SyscallStat, SystemOverview, ThreadSnapshot, TraceEvent,
 };
 
 pub type Result<T> = std::result::Result<T, TelemetryError>;
@@ -116,6 +116,11 @@ pub trait TelemetryAdapter: Send + Sync {
     /// Requires same-uid or `CAP_SYS_PTRACE`, like other privileged
     /// `/proc/[pid]` reads.
     fn environment(&self, pid: Pid) -> Result<Vec<EnvVar>>;
+    /// Real mapped files (shared libraries, the executable, mapped data
+    /// files) from `/proc/[pid]/maps` — "what does this process depend
+    /// on," the same question Process Explorer's DLL view answers.
+    /// Anonymous mappings are excluded; see `MappedFile`'s doc comment.
+    fn mapped_files(&self, pid: Pid) -> Result<Vec<MappedFile>>;
 
     /// `Tier::Profile` — a short stack-sampling profile via `perf`. `Ok`
     /// with an empty `Vec` is a valid "no samples landed anywhere

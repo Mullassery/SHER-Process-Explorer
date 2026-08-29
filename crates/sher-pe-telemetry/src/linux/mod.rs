@@ -17,8 +17,9 @@ use std::path::{Path, PathBuf};
 
 use sher_pe_model::{
     CgroupInfo, ContainerInfo, CpuStats, DiskIoStats, EnvVar, FdLimits, HotFunction, LogEntry,
-    NamespaceInfo, NetworkConnection, OpenFile, Pid, ProcessSnapshot, ProcessState, SchedulerStats,
-    SecurityContext, Signal, SyscallStat, SystemOverview, ThreadSnapshot, TraceEvent,
+    MappedFile, NamespaceInfo, NetworkConnection, OpenFile, Pid, ProcessSnapshot, ProcessState,
+    SchedulerStats, SecurityContext, Signal, SyscallStat, SystemOverview, ThreadSnapshot,
+    TraceEvent,
 };
 
 use crate::{Result, TelemetryAdapter};
@@ -206,6 +207,10 @@ impl TelemetryAdapter for LinuxAdapter {
 
     fn environment(&self, pid: Pid) -> Result<Vec<EnvVar>> {
         procfs::environ::read_environ(&self.root, pid)
+    }
+
+    fn mapped_files(&self, pid: Pid) -> Result<Vec<MappedFile>> {
+        procfs::maps::read_mapped_files(&self.root, pid)
     }
 }
 

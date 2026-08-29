@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use sher_pe_model::{
-    CgroupInfo, ContainerInfo, DiskIoStats, EnvVar, FdLimits, LogEntry, NamespaceInfo,
+    CgroupInfo, ContainerInfo, DiskIoStats, EnvVar, FdLimits, LogEntry, MappedFile, NamespaceInfo,
     NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats, SecurityContext, Signal,
     SystemOverview, ThreadSnapshot,
 };
@@ -34,6 +34,7 @@ pub struct MockTelemetryAdapter {
     sent_signals: Mutex<Vec<(Pid, Signal)>>,
     fd_limits: Mutex<HashMap<Pid, FdLimits>>,
     environment: Mutex<HashMap<Pid, Vec<EnvVar>>>,
+    open_files: Mutex<HashMap<Pid, Vec<OpenFile>>>,
 }
 
 impl MockTelemetryAdapter {
@@ -103,6 +104,10 @@ impl MockTelemetryAdapter {
     pub fn set_environment(&self, pid: Pid, vars: Vec<EnvVar>) {
         self.environment.lock().unwrap().insert(pid, vars);
     }
+
+    pub fn set_open_files(&self, pid: Pid, files: Vec<OpenFile>) {
+        self.open_files.lock().unwrap().insert(pid, files);
+    }
 }
 
 impl TelemetryAdapter for MockTelemetryAdapter {
@@ -129,8 +134,14 @@ impl TelemetryAdapter for MockTelemetryAdapter {
             .unwrap_or_default())
     }
 
-    fn open_files(&self, _pid: Pid) -> Result<Vec<OpenFile>> {
-        Ok(Vec::new())
+    fn open_files(&self, pid: Pid) -> Result<Vec<OpenFile>> {
+        Ok(self
+            .open_files
+            .lock()
+            .unwrap()
+            .get(&pid)
+            .cloned()
+            .unwrap_or_default())
     }
 
     fn connections(&self, pid: Pid) -> Result<Vec<NetworkConnection>> {
@@ -256,5 +267,9 @@ impl TelemetryAdapter for MockTelemetryAdapter {
             .get(&pid)
             .cloned()
             .unwrap_or_default())
+    }
+
+    fn mapped_files(&self, _pid: Pid) -> Result<Vec<MappedFile>> {
+        Ok(Vec::new())
     }
 }

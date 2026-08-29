@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     CgroupInfo, ContainerInfo, DiskIoStats, EnvVar, FamilyRollup, FdLimits, Finding, LogEntry,
-    NamespaceInfo, NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats,
+    MappedFile, NamespaceInfo, NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats,
     SecurityContext, SystemOverview, ThreadSnapshot, TimelineEvent,
 };
 
@@ -30,6 +30,7 @@ pub struct DiagnosticReport {
     pub disk_io: Option<DiskIoStats>,
     pub fd_limits: Option<FdLimits>,
     pub environment: Vec<EnvVar>,
+    pub mapped_files: Vec<MappedFile>,
     pub timeline: Vec<TimelineEvent>,
     pub journal_entries: Vec<LogEntry>,
     pub kernel_log: Vec<String>,
@@ -80,6 +81,7 @@ mod tests {
             disk_io: None,
             fd_limits: None,
             environment: vec![],
+            mapped_files: vec![],
             timeline: vec![],
             journal_entries: vec![],
             kernel_log: vec![],

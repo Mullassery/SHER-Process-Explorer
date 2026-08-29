@@ -335,13 +335,81 @@ evidence-typed `Confidence` system) are left as-is.
 ### Note on validation environment
 
 All real-Linux validation this project relies on (privileged Docker
-containers) remains the practical path for now. `~/tinybridge` (a sibling
+containers) remains the practical path today. `~/tinybridge` (a sibling
 project — a macOS-native Linux VM runtime via Apple's
 Virtualization.framework) was tried as a lighter-weight alternative on
-2026-08-28: it built and its hypervisor lifecycle worked (`Running` state,
-real DHCP-assigned guest IP), but the guest kernel never produced any
-serial console output over a 60s window, so no shell was ever reachable
-inside it — a real, currently-unresolved TinyBridge-side blocker (see its
-own README for the concrete AMFI-signature finding from that session), not
-something fixable from this project's side. Revisit once TinyBridge's
-guest boot is confirmed working.
+2026-08-28: its guest boot was initially blocked (see this file's earlier
+revision for that finding), but was root-caused and fixed later the same
+day in TinyBridge itself — the blocker was a mismatched kernel (a
+Firecracker-microVM-only build with no virtio-pci support), not an Apple
+regression. TinyBridge now boots a real Ubuntu guest to a working login
+with cloud-init-provisioned credentials. The one remaining gap is
+host-to-guest SSH/TCP reachability, blocked on a one-time macOS "Local
+Network" privacy-permission grant for the calling terminal process, not a
+code issue on either side. Revisit once that permission is granted — at
+that point TinyBridge becomes a real, faster alternative to Docker for
+this project's Linux validation.
+
+## Phase 10 — Inspiration matrix (MacTop, Process Explorer, htop, lsof, dtrace, ...)
+
+A structured comparison against reference tools (MacTop, Sysinternals
+Process Explorer, Activity Monitor, htop, btop, `ps`, `lsof`, `strace`/
+`dtrace`, Instruments, Procmon) was done to find ideas that strengthen
+*process investigation and behavioral understanding* specifically —
+SHER's stated purpose — not ideas that would turn it into another bare
+system monitor. Each idea was classified Adopt/Adapt/Observe/Reject
+against that bar; the highest-value, cleanest-fit ones are below.
+
+- Reverse lookup ("who has this file/port") ✅ — `lsof`'s core
+  investigation move: starting from a symptom (a stuck port, a locked
+  file) instead of a pid. `ProcessIntelligence::who_has_file`/
+  `who_has_port` scan every live pid's already-collected `open_files`/
+  `connections` (no new telemetry, pure composition), exposed as `sher
+  who-has <path>` / `sher who-has --port <port>` (CLI). Verified
+  end-to-end on real Linux: found a real Python listener by port,
+  correctly reported no match for a wrong port, found a process by a
+  real open file path (and correctly did *not* match on its own
+  executable path, since that's mapped, not fd-open — see the next
+  item for that distinction), and both the "neither flag" and "both
+  flags" usage errors exit non-zero with a clear message.
+- Mapped libraries/files (Process Explorer's "what DLLs does this
+  process use") ✅ — a new `MappedFile { path, size_bytes }` from
+  `/proc/[pid]/maps`, collapsing a file's several segments (one per
+  permission combination) into one entry per path, excluding anonymous
+  mappings (`[heap]`/`[stack]`/`[vdso]`/`[vvar]`) since the question is
+  "what does this process depend on," not "show the whole address
+  space." `TelemetryAdapter::mapped_files`, a new "=== Mapped
+  Libraries/Files ===" CLI section, a Mapped Libraries list in the
+  GUI's Memory tab, and included in `sher export`'s diagnostic report.
+  Verified end-to-end on real Linux: a real process's real shared
+  libraries (`libc.so.6`, the dynamic loader) show with correct summed
+  sizes.
+- Trend-over-time narrative (MacTop/Activity Monitor/btop's graphs,
+  reinterpreted) — pending. The cross-cutting idea from the matrix:
+  not a bare sparkline, but the mechanism behind "CPU increased from
+  12% to 72% over 43 seconds," feeding both a future GUI visualization
+  and the existing `why_*` narrative text. `sher-pe-history`'s
+  per-tick snapshots (for persisted long-term trend) and
+  `ProcessIntelligence`'s existing in-memory history (for a live GUI
+  sparkline needing no daemon at all) are both already in place as the
+  data source — only the query/render layer is missing.
+- Syscall aggregation over `deep_trace` (dtrace-style `count()` by
+  syscall/caller) — pending. Closes the gap between `sample_syscalls`
+  (already aggregated counts) and `deep_trace` (raw per-event firehose,
+  no aggregation) — turns "here are 40,000 events" into "syscall X was
+  called 40,000 times, mostly from thread Y."
+- New `TimelineEventKind` variants for CPU spikes/syscall bursts —
+  pending. Mechanical extension of an enum that already mixes
+  lifecycle/memory-growth/connection events on one timeline (Phase 5);
+  same threshold-crossing pattern `refresh_at` already uses for memory.
+- GUI signal-picker parity — pending. The CLI's `sher kill` already
+  supports 9 named signals; the GUI's Terminate/Kill buttons only
+  expose 2 of them, a real CLI/GUI parity gap against this project's
+  own "one API, many consumers" rule.
+- Everything else evaluated (energy-impact scores, per-core system
+  detail, GPU history, allocation-level leak tracking, Autoruns-style
+  startup-item inventories, ...) was Rejected or Observed-not-adopted:
+  each one either answers "how is the machine doing" rather than "why
+  is this process behaving this way," or requires OS-level mechanisms
+  (allocator hooks, cross-boundary kernel correlation) well beyond
+  `/proc`-based telemetry's appropriate scope for this project.

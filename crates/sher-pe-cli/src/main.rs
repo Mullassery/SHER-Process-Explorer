@@ -130,6 +130,19 @@ enum Command {
         #[arg(long)]
         db: Option<std::path::PathBuf>,
     },
+    /// Reverse lookup: which process has a given file open, or a given
+    /// port bound — investigation often starts from a symptom (a stuck
+    /// port, a locked file), not a pid.
+    WhoHas {
+        /// A substring to match against every live process's open file
+        /// paths (e.g. a filename or directory) — mutually exclusive
+        /// with `--port`.
+        path: Option<String>,
+        /// A port number to match against every live process's local
+        /// connection addresses — mutually exclusive with `path`.
+        #[arg(long)]
+        port: Option<u16>,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -277,6 +290,7 @@ fn main() {
             let db_path = db.unwrap_or_else(default_history_db_path);
             render::history(pid, since_secs, &db_path, cli.json)
         }
+        Command::WhoHas { path, port } => render::who_has(&intel, path, port, cli.json),
     };
     std::process::exit(exit_code);
 }

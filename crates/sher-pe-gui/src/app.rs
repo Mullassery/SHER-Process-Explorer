@@ -508,6 +508,40 @@ impl SherApp {
             let _ = self.finding_for(DetailTab::Memory, pid);
         }
         draw_finding_if_cached(ui, &self.cached_finding, DetailTab::Memory, pid);
+
+        ui.separator();
+        ui.label("Mapped libraries/files:");
+        match self.intel.mapped_files(pid) {
+            Ok(files) if files.is_empty() => {
+                ui.weak("(none, or unavailable)");
+            }
+            Ok(files) => {
+                egui::ScrollArea::vertical()
+                    .max_height(200.0)
+                    .id_salt("mapped_files_scroll")
+                    .show(ui, |ui| {
+                        egui::Grid::new("mapped_files_grid")
+                            .num_columns(2)
+                            .striped(true)
+                            .show(ui, |ui| {
+                                ui.strong("Size");
+                                ui.strong("Path");
+                                ui.end_row();
+                                for f in files {
+                                    ui.label(format!("{} KB", f.size_bytes / 1024));
+                                    ui.label(f.path);
+                                    ui.end_row();
+                                }
+                            });
+                    });
+            }
+            Err(err) => {
+                ui.colored_label(
+                    egui::Color32::from_rgb(220, 160, 60),
+                    format!("unavailable: {err}"),
+                );
+            }
+        }
     }
 
     fn draw_cpu(&mut self, ui: &mut egui::Ui, pid: Pid, process: &sher_pe_model::ProcessSnapshot) {
