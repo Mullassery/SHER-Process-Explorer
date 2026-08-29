@@ -13,7 +13,7 @@ pub mod testing;
 use std::time::Duration;
 
 use sher_pe_model::{
-    CgroupInfo, ContainerInfo, DiskIoStats, HotFunction, LogEntry, NamespaceInfo,
+    CgroupInfo, ContainerInfo, DiskIoStats, EnvVar, FdLimits, HotFunction, LogEntry, NamespaceInfo,
     NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats, SecurityContext, Signal,
     SyscallStat, SystemOverview, ThreadSnapshot, TraceEvent,
 };
@@ -107,6 +107,15 @@ pub trait TelemetryAdapter: Send + Sync {
     /// responsibility, not this trait's — a caller that already decided to
     /// send a signal should not be second-guessed here.
     fn send_signal(&self, pid: Pid, signal: Signal) -> Result<()>;
+    /// `RLIMIT_NOFILE` soft/hard limits from `/proc/[pid]/limits` — the
+    /// process's actual configured ceiling, for diagnosing "too many open
+    /// files" against `open_file_count` rather than just showing the
+    /// current count with no limit to compare it to.
+    fn fd_limits(&self, pid: Pid) -> Result<FdLimits>;
+    /// `KEY=VALUE` environment entries from `/proc/[pid]/environ`.
+    /// Requires same-uid or `CAP_SYS_PTRACE`, like other privileged
+    /// `/proc/[pid]` reads.
+    fn environment(&self, pid: Pid) -> Result<Vec<EnvVar>>;
 
     /// `Tier::Profile` — a short stack-sampling profile via `perf`. `Ok`
     /// with an empty `Vec` is a valid "no samples landed anywhere

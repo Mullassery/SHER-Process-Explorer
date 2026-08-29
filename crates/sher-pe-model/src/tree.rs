@@ -108,6 +108,8 @@ mod tests {
         ProcessSnapshot {
             pid,
             ppid,
+            pgid: pid,
+            sid: pid,
             name: format!("proc-{pid}"),
             cmdline: vec![],
             exe: None,

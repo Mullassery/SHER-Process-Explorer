@@ -83,6 +83,8 @@ mod tests {
         assert_eq!(stat.id, 100);
         assert_eq!(stat.comm, "sherd");
         assert_eq!(stat.ppid, 1);
+        assert_eq!(stat.pgrp, 100);
+        assert_eq!(stat.session, 100);
     }
 
     #[test]

@@ -360,6 +360,8 @@ pub fn diagnostic_report(
         container: intel.container_info(pid).ok().flatten(),
         scheduler_stats: intel.scheduler_stats(pid).ok(),
         disk_io: intel.disk_io(pid).ok(),
+        fd_limits: intel.fd_limits(pid).ok(),
+        environment: intel.environment(pid).unwrap_or_default(),
         timeline: intel.timeline(pid),
         journal_entries: intel.journal_entries(pid, 200).unwrap_or_default(),
         kernel_log: intel.kernel_log_for(pid).unwrap_or_default(),
@@ -483,6 +485,8 @@ mod tests {
         ProcessSnapshot {
             pid,
             ppid,
+            pgid: pid,
+            sid: pid,
             name: format!("proc-{pid}"),
             cmdline: vec![],
             exe: None,
@@ -576,6 +580,15 @@ mod tests {
             signal: sher_pe_model::Signal,
         ) -> sher_pe_telemetry::Result<()> {
             self.0.send_signal(pid, signal)
+        }
+        fn fd_limits(&self, pid: PidType) -> sher_pe_telemetry::Result<sher_pe_model::FdLimits> {
+            self.0.fd_limits(pid)
+        }
+        fn environment(
+            &self,
+            pid: PidType,
+        ) -> sher_pe_telemetry::Result<Vec<sher_pe_model::EnvVar>> {
+            self.0.environment(pid)
         }
     }
 

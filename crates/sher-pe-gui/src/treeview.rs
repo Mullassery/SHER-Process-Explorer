@@ -98,6 +98,8 @@ mod tests {
         ProcessSnapshot {
             pid,
             ppid,
+            pgid: pid,
+            sid: pid,
             name: name.to_string(),
             cmdline: vec![],
             exe: None,

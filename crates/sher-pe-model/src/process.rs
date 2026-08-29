@@ -47,6 +47,13 @@ impl ProcessState {
 pub struct ProcessSnapshot {
     pub pid: Pid,
     pub ppid: Pid,
+    /// Process group ID (`/proc/[pid]/stat` field 5) — job control's
+    /// unit, e.g. what a shell sends `SIGINT` to as a group on Ctrl-C.
+    pub pgid: Pid,
+    /// Session ID (`/proc/[pid]/stat` field 6) — the session leader's
+    /// pid; shared by every process descended from one `setsid(2)` call
+    /// (a login session, a `tmux`/`screen` session, ...).
+    pub sid: Pid,
     pub name: String,
     pub cmdline: Vec<String>,
     pub exe: Option<String>,
@@ -84,6 +91,8 @@ mod tests {
         let snap = ProcessSnapshot {
             pid: 42,
             ppid: 1,
+            pgid: 42,
+            sid: 1,
             name: "sherd".into(),
             cmdline: vec!["sherd".into(), "--foreground".into()],
             exe: Some("/usr/bin/sherd".into()),

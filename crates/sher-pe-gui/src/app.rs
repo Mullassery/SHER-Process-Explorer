@@ -30,10 +30,11 @@ enum DetailTab {
     Network,
     Disk,
     Security,
+    Environment,
     Timeline,
 }
 
-const ALL_TABS: [DetailTab; 9] = [
+const ALL_TABS: [DetailTab; 10] = [
     DetailTab::Overview,
     DetailTab::Memory,
     DetailTab::Cpu,
@@ -42,6 +43,7 @@ const ALL_TABS: [DetailTab; 9] = [
     DetailTab::Network,
     DetailTab::Disk,
     DetailTab::Security,
+    DetailTab::Environment,
     DetailTab::Timeline,
 ];
 
@@ -57,6 +59,7 @@ impl DetailTab {
             DetailTab::Disk => "Disk I/O",
             DetailTab::Timeline => "Timeline",
             DetailTab::Security => "Security",
+            DetailTab::Environment => "Environment",
         }
     }
 }
@@ -293,6 +296,7 @@ impl SherApp {
             DetailTab::Network => self.draw_network(ui, pid),
             DetailTab::Disk => self.draw_disk(ui, pid),
             DetailTab::Security => self.draw_security(ui, pid),
+            DetailTab::Environment => self.draw_environment(ui, pid),
             DetailTab::Timeline => self.draw_timeline(ui, pid),
         }
     }
@@ -311,6 +315,9 @@ impl SherApp {
                 ui.end_row();
                 ui.label("PPID");
                 ui.label(process.ppid.to_string());
+                ui.end_row();
+                ui.label("PGID / SID");
+                ui.label(format!("{} / {}", process.pgid, process.sid));
                 ui.end_row();
                 ui.label("Name");
                 ui.label(&process.name);
@@ -670,6 +677,18 @@ impl SherApp {
     }
 
     fn draw_files(&mut self, ui: &mut egui::Ui, pid: Pid) {
+        if let Ok(limits) = self.intel.fd_limits(pid) {
+            ui.label(format!(
+                "FD limits: soft={} hard={}",
+                limits
+                    .soft
+                    .map_or("unlimited".to_string(), |v| v.to_string()),
+                limits
+                    .hard
+                    .map_or("unlimited".to_string(), |v| v.to_string())
+            ));
+            ui.separator();
+        }
         match self.intel.open_files(pid) {
             Ok(files) if files.is_empty() => {
                 ui.weak("(no open files)");
@@ -791,6 +810,39 @@ impl SherApp {
                         ui.label("LSM label");
                         ui.label(sec.lsm_label.as_deref().unwrap_or("(none)"));
                         ui.end_row();
+                    });
+            }
+            Err(err) => {
+                ui.colored_label(
+                    egui::Color32::from_rgb(220, 160, 60),
+                    format!("unavailable: {err}"),
+                );
+            }
+        }
+    }
+
+    fn draw_environment(&mut self, ui: &mut egui::Ui, pid: Pid) {
+        match self.intel.environment(pid) {
+            Ok(vars) if vars.is_empty() => {
+                ui.weak("(no environment variables)");
+            }
+            Ok(vars) => {
+                egui::ScrollArea::vertical()
+                    .max_height(400.0)
+                    .show(ui, |ui| {
+                        egui::Grid::new("environment_grid")
+                            .num_columns(2)
+                            .striped(true)
+                            .show(ui, |ui| {
+                                ui.strong("Key");
+                                ui.strong("Value");
+                                ui.end_row();
+                                for var in vars {
+                                    ui.label(var.key);
+                                    ui.label(var.value);
+                                    ui.end_row();
+                                }
+                            });
                     });
             }
             Err(err) => {

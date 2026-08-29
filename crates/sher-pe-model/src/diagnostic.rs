@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CgroupInfo, ContainerInfo, DiskIoStats, FamilyRollup, Finding, LogEntry, NamespaceInfo,
-    NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats, SecurityContext,
-    SystemOverview, ThreadSnapshot, TimelineEvent,
+    CgroupInfo, ContainerInfo, DiskIoStats, EnvVar, FamilyRollup, FdLimits, Finding, LogEntry,
+    NamespaceInfo, NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats,
+    SecurityContext, SystemOverview, ThreadSnapshot, TimelineEvent,
 };
 
 /// A single-file bundle of everything SHER Process Explorer knows about
@@ -28,6 +28,8 @@ pub struct DiagnosticReport {
     pub container: Option<ContainerInfo>,
     pub scheduler_stats: Option<SchedulerStats>,
     pub disk_io: Option<DiskIoStats>,
+    pub fd_limits: Option<FdLimits>,
+    pub environment: Vec<EnvVar>,
     pub timeline: Vec<TimelineEvent>,
     pub journal_entries: Vec<LogEntry>,
     pub kernel_log: Vec<String>,
@@ -50,6 +52,8 @@ mod tests {
             process: ProcessSnapshot {
                 pid: 42,
                 ppid: 1,
+                pgid: 42,
+                sid: 1,
                 name: "sherd".into(),
                 cmdline: vec!["sherd".into()],
                 exe: None,
@@ -74,6 +78,8 @@ mod tests {
             container: None,
             scheduler_stats: None,
             disk_io: None,
+            fd_limits: None,
+            environment: vec![],
             timeline: vec![],
             journal_entries: vec![],
             kernel_log: vec![],

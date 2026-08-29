@@ -57,6 +57,10 @@ pub struct StatFields {
     pub state_char: char,
     /// Field 4.
     pub ppid: Pid,
+    /// Field 5 — the process group ID (`setpgid(2)`/job control).
+    pub pgrp: Pid,
+    /// Field 6 — the session ID (`setsid(2)`).
+    pub session: Pid,
     /// Field 14.
     pub utime: u64,
     /// Field 15.
@@ -119,6 +123,8 @@ pub fn parse_stat_line(content: &str, path: &Path) -> Result<StatFields> {
         .map_err(|_| parse_err(path, format!("expected an integer pid, got '{id_str}'")))?;
     let state_char = field(3)?.chars().next().unwrap_or('?');
     let ppid = parse_num(field(4)?)? as Pid;
+    let pgrp = parse_num(field(5)?)? as Pid;
+    let session = parse_num(field(6)?)? as Pid;
     let utime = parse_num(field(14)?)? as u64;
     let stime = parse_num(field(15)?)? as u64;
     let priority = parse_num(field(18)?)? as i32;
@@ -131,6 +137,8 @@ pub fn parse_stat_line(content: &str, path: &Path) -> Result<StatFields> {
         comm,
         state_char,
         ppid,
+        pgrp,
+        session,
         utime,
         stime,
         priority,
@@ -171,6 +179,8 @@ mod tests {
         assert_eq!(fields.comm, "sherd");
         assert_eq!(fields.state_char, 'S');
         assert_eq!(fields.ppid, 1);
+        assert_eq!(fields.pgrp, 42);
+        assert_eq!(fields.session, 42);
         assert_eq!(fields.utime, 10);
         assert_eq!(fields.stime, 5);
         assert_eq!(fields.priority, 20);

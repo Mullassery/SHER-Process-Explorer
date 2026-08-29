@@ -6,8 +6,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use sher_pe_model::{
-    CgroupInfo, ContainerInfo, DiskIoStats, LogEntry, NamespaceInfo, NetworkConnection, OpenFile,
-    Pid, ProcessSnapshot, SchedulerStats, SecurityContext, Signal, SystemOverview, ThreadSnapshot,
+    CgroupInfo, ContainerInfo, DiskIoStats, EnvVar, FdLimits, LogEntry, NamespaceInfo,
+    NetworkConnection, OpenFile, Pid, ProcessSnapshot, SchedulerStats, SecurityContext, Signal,
+    SystemOverview, ThreadSnapshot,
 };
 
 use crate::{Result, TelemetryAdapter, TelemetryError};
@@ -31,6 +32,8 @@ pub struct MockTelemetryAdapter {
     /// test assert exactly what a `ProcessIntelligence::send_signal` call
     /// forwarded, without a real `kill(2)` ever happening.
     sent_signals: Mutex<Vec<(Pid, Signal)>>,
+    fd_limits: Mutex<HashMap<Pid, FdLimits>>,
+    environment: Mutex<HashMap<Pid, Vec<EnvVar>>>,
 }
 
 impl MockTelemetryAdapter {
@@ -91,6 +94,14 @@ impl MockTelemetryAdapter {
     /// Every `send_signal` call received so far, in order.
     pub fn sent_signals(&self) -> Vec<(Pid, Signal)> {
         self.sent_signals.lock().unwrap().clone()
+    }
+
+    pub fn set_fd_limits(&self, pid: Pid, limits: FdLimits) {
+        self.fd_limits.lock().unwrap().insert(pid, limits);
+    }
+
+    pub fn set_environment(&self, pid: Pid, vars: Vec<EnvVar>) {
+        self.environment.lock().unwrap().insert(pid, vars);
     }
 }
 
@@ -225,5 +236,25 @@ impl TelemetryAdapter for MockTelemetryAdapter {
         }
         self.sent_signals.lock().unwrap().push((pid, signal));
         Ok(())
+    }
+
+    fn fd_limits(&self, pid: Pid) -> Result<FdLimits> {
+        Ok(self
+            .fd_limits
+            .lock()
+            .unwrap()
+            .get(&pid)
+            .copied()
+            .unwrap_or_default())
+    }
+
+    fn environment(&self, pid: Pid) -> Result<Vec<EnvVar>> {
+        Ok(self
+            .environment
+            .lock()
+            .unwrap()
+            .get(&pid)
+            .cloned()
+            .unwrap_or_default())
     }
 }

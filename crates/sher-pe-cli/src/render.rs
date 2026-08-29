@@ -173,6 +173,8 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
             systemd_unit: Option<String>,
             scheduler_stats: Option<sher_pe_model::SchedulerStats>,
             container: Option<sher_pe_model::ContainerInfo>,
+            fd_limits: Option<sher_pe_model::FdLimits>,
+            environment: Vec<sher_pe_model::EnvVar>,
         }
         let inspection = Inspection {
             process: process.clone(),
@@ -183,6 +185,8 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
             systemd_unit: intel.systemd_unit(pid).ok().flatten(),
             scheduler_stats: intel.scheduler_stats(pid).ok(),
             container: intel.container_info(pid).ok().flatten(),
+            fd_limits: intel.fd_limits(pid).ok(),
+            environment: intel.environment(pid).unwrap_or_default(),
         };
         print_json_or(json, &inspection, || {});
         return 0;
@@ -191,6 +195,8 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
     println!("=== Overview ===");
     println!("pid:      {}", process.pid);
     println!("ppid:     {}", process.ppid);
+    println!("pgid:     {}", process.pgid);
+    println!("sid:      {}", process.sid);
     println!("name:     {}", process.name);
     println!("state:    {:?}", process.state);
     println!("uid/gid:  {}/{}", process.uid, process.gid);
@@ -254,6 +260,17 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
     }
 
     println!("\n=== Files ({}) ===", process.open_file_count);
+    if let Ok(limits) = intel.fd_limits(pid) {
+        println!(
+            "limits:   soft={} hard={}",
+            limits
+                .soft
+                .map_or("unlimited".to_string(), |v| v.to_string()),
+            limits
+                .hard
+                .map_or("unlimited".to_string(), |v| v.to_string())
+        );
+    }
     match intel.open_files(pid) {
         Ok(files) => {
             for f in files.iter().take(20) {
@@ -294,6 +311,17 @@ pub fn inspect(intel: &ProcessIntelligence, pid: Pid, json: bool) -> i32 {
                 "  LSM label:           {}",
                 sec.lsm_label.as_deref().unwrap_or("(none)")
             );
+        }
+        Err(err) => println!("  (unavailable: {err})"),
+    }
+
+    println!("\n=== Environment ===");
+    match intel.environment(pid) {
+        Ok(vars) if vars.is_empty() => println!("  (no environment variables)"),
+        Ok(vars) => {
+            for var in vars {
+                println!("  {}={}", var.key, var.value);
+            }
         }
         Err(err) => println!("  (unavailable: {err})"),
     }

@@ -351,6 +351,16 @@ impl ProcessIntelligence {
         self.adapter.send_signal(pid, signal)
     }
 
+    /// `RLIMIT_NOFILE` soft/hard limits for `pid`.
+    pub fn fd_limits(&self, pid: Pid) -> Result<sher_pe_model::FdLimits> {
+        self.adapter.fd_limits(pid)
+    }
+
+    /// Live environment variables for `pid`, read fresh from the adapter.
+    pub fn environment(&self, pid: Pid) -> Result<Vec<sher_pe_model::EnvVar>> {
+        self.adapter.environment(pid)
+    }
+
     /// Live scheduler accounting (time running vs. time waiting for a
     /// CPU) for `pid`.
     pub fn scheduler_stats(&self, pid: Pid) -> Result<SchedulerStats> {
@@ -419,6 +429,8 @@ mod tests {
         ProcessSnapshot {
             pid,
             ppid,
+            pgid: pid,
+            sid: pid,
             name: format!("proc-{pid}"),
             cmdline: vec![],
             exe: None,
@@ -510,6 +522,12 @@ mod tests {
         }
         fn send_signal(&self, pid: Pid, signal: Signal) -> sher_pe_telemetry::Result<()> {
             self.0.send_signal(pid, signal)
+        }
+        fn fd_limits(&self, pid: Pid) -> sher_pe_telemetry::Result<sher_pe_model::FdLimits> {
+            self.0.fd_limits(pid)
+        }
+        fn environment(&self, pid: Pid) -> sher_pe_telemetry::Result<Vec<sher_pe_model::EnvVar>> {
+            self.0.environment(pid)
         }
     }
 

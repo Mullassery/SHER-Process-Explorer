@@ -16,8 +16,8 @@ pub mod systemd;
 use std::path::{Path, PathBuf};
 
 use sher_pe_model::{
-    CgroupInfo, ContainerInfo, CpuStats, DiskIoStats, HotFunction, LogEntry, NamespaceInfo,
-    NetworkConnection, OpenFile, Pid, ProcessSnapshot, ProcessState, SchedulerStats,
+    CgroupInfo, ContainerInfo, CpuStats, DiskIoStats, EnvVar, FdLimits, HotFunction, LogEntry,
+    NamespaceInfo, NetworkConnection, OpenFile, Pid, ProcessSnapshot, ProcessState, SchedulerStats,
     SecurityContext, Signal, SyscallStat, SystemOverview, ThreadSnapshot, TraceEvent,
 };
 
@@ -88,6 +88,8 @@ impl TelemetryAdapter for LinuxAdapter {
         Ok(ProcessSnapshot {
             pid: stat.id,
             ppid: stat.ppid,
+            pgid: stat.pgrp,
+            sid: stat.session,
             name: stat.comm,
             cmdline,
             exe,
@@ -196,6 +198,14 @@ impl TelemetryAdapter for LinuxAdapter {
 
     fn send_signal(&self, pid: Pid, signal: Signal) -> Result<()> {
         process_control::send_signal(pid, signal)
+    }
+
+    fn fd_limits(&self, pid: Pid) -> Result<FdLimits> {
+        procfs::limits::read_fd_limits(&self.root, pid)
+    }
+
+    fn environment(&self, pid: Pid) -> Result<Vec<EnvVar>> {
+        procfs::environ::read_environ(&self.root, pid)
     }
 }
 

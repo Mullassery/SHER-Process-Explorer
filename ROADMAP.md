@@ -306,6 +306,31 @@ evidence-typed `Confidence` system) are left as-is.
   Linux: exported JSON for a real process correctly contains its process
   detail, 4 findings, and the live system process count; a nonexistent
   pid returns a typed not-found error, not an empty or partial report.
+- Process groups/sessions ✅ — `ProcessSnapshot` gained `pgid`/`sid`
+  (`/proc/[pid]/stat` fields 5/6, already parsed in the same read as
+  `ppid`/`state`/etc. — free to add, no extra syscall). Shown in `sher
+  inspect`'s Overview section and the GUI's Overview tab.
+- FD limits ✅ — a new `FdLimits { soft, hard }` type
+  (`/proc/[pid]/limits`'s "Max open files" row only — the concrete named
+  gap, not the whole file), where `None` means the kernel's own
+  `RLIM_INFINITY` ("unlimited"), never conflated with a parse failure
+  (a genuinely malformed value is a typed error, not silently treated as
+  unlimited). `TelemetryAdapter::fd_limits`, shown alongside
+  `open_file_count` in `sher inspect`'s Files section and the GUI's
+  Files tab, and included in `sher export`'s diagnostic report.
+- Env vars ✅ — a new `EnvVar { key, value }` type from
+  `/proc/[pid]/environ` (same NUL-separated format `cmdline` already
+  parses); an entry with no `=` is kept as `(entry, "")` rather than
+  silently dropped. `TelemetryAdapter::environment`, a new "=== Environment
+  ===" section in `sher inspect`, a new Environment tab in the GUI, and
+  included in `sher export`'s diagnostic report.
+
+  Verified end-to-end on real Linux: `sher inspect`/`sher export --json`
+  against a real process with an explicitly-set environment variable
+  correctly show real `pgid`/`sid`, real FD limits read from the
+  container's actual `ulimit`, and the real environment variable
+  (present in both the human-readable and `--json` output, and in the
+  exported diagnostic report).
 
 ### Note on validation environment
 
