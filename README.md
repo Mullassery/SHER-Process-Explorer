@@ -10,24 +10,56 @@ Part of the same personal ecosystem as [Aurora](https://github.com/Mullassery/au
 (look), Himalayas (feel), [SHER Kernel](https://github.com/Mullassery/SHER-KERNEL)
 (work differently), and TinyBridge (run safer).
 
+## Use cases
+
+- **Figuring out why a process is behaving badly** without manually
+  combining `top`/`ps`/`lsof`/`ss`/`strace`/`perf`/`journalctl` — `sher why
+  <pid>` produces evidence-backed findings, not a raw dump.
+- **Real syscall/stack tracing** — `sher trace <pid>` (via `strace`) and
+  `sher profile <pid>` (via `perf`) for a live process, not a mocked or
+  `Unsupported`-stub command.
+- **Reverse lookup from a symptom** — "who has this file/port open" via
+  `sher-pe-intelligence`'s `who_has_file`/`who_has_port`, instead of
+  starting from a pid you don't have yet.
+- **Long-term history** — `sherd` (the background daemon) samples on an
+  interval into a persistent SQLite store, so `sher history <pid>` can
+  answer "what was this process doing an hour ago."
+- **Not yet a good fit for:** SHER Kernel telemetry integration or an
+  AI-narrative layer over findings — both explicitly not started (Phase 6/7
+  in `ROADMAP.md`).
+
 ## What's here
 
-**Phase 0 — engine + CLI:**
+172 Rust tests (`cargo test --workspace`), CI green. Phases 0 through 5 and
+Phase 8 are shipped (✅ in `ROADMAP.md`); Phase 6 (SHER Kernel adapter) and
+Phase 7 (optional AI narrative layer) haven't been started; Phases 9/10 are
+living "ideas adopted incrementally" phases, not one-shot deliverables — see
+`ROADMAP.md` for the exact per-item status.
 
-- Hand-rolled `/proc` parsing (`sher-pe-telemetry`) — no external procfs-wrapper
-  dependency, full control over exact fields, fixture-tested so the parser
-  logic runs on macOS too even though the adapter itself is Linux-only.
-- A process intelligence layer (`sher-pe-intelligence`) that turns raw
-  snapshots into a process tree, family rollups, CPU%-over-time, and a
-  timeline of started/exited/grew/connected events.
-- A deterministic, rule-based "why" investigation engine
-  (`sher-pe-investigation`) that produces `Finding`s backed by `Evidence` —
+- **Hand-rolled `/proc` parsing** (`sher-pe-telemetry`) — no external
+  procfs-wrapper dependency, fixture-tested so the parser logic runs on
+  macOS too even though the adapter itself is Linux-only. Includes real
+  `strace`/`perf`/`bpftrace`-backed syscall tracing and stack profiling
+  (Phase 3) — `sher trace`/`sher profile` are real commands, not stubs.
+- **Process intelligence** (`sher-pe-intelligence`) — process tree, family
+  rollups, CPU%-over-time, a timeline of started/exited/grew/connected
+  events, containers/namespaces as first-class objects (Phase 4), and
+  reverse lookup (who-has-file/who-has-port, Phase 10).
+- **A deterministic, rule-based "why" investigation engine**
+  (`sher-pe-investigation`) producing `Finding`s backed by `Evidence` —
   structurally unable to claim more certainty than the data supports (see
   `Confidence::{Observed,Correlated,Likely,Unknown}`).
+- **Log correlation & crash timeline** (Phase 5).
+- **`sherd`** (`sher-pe-daemon`) — a background daemon sampling the process
+  table on an interval, persisting to SQLite via **`sher-pe-history`**, so
+  `sher history <pid>` isn't bounded by `sher-pe-intelligence`'s in-memory,
+  capacity-bounded history (120 ticks / 1000 events, gone once the process
+  exits).
+- **Packaging** (Phase 8) — real `.deb` (`cargo-deb`) and `.rpm`
+  (`cargo-generate-rpm`) packages, plus an AUR `PKGBUILD`
+  (`packaging/aur/`), each verified end-to-end against real Ubuntu/Fedora/
+  Arch containers — see [Install](#install) below.
 - A `sher` CLI (`sher-pe-cli`).
-
-**Phase 1 — desktop UI:**
-
 - `sher-gui` (`sher-pe-gui`), an `egui`/`eframe` desktop app calling the
   *exact same* `sher-pe-intelligence`/`sher-pe-investigation` APIs the CLI
   uses — a process tree with search/collapse, tabbed detail per process,
@@ -35,15 +67,21 @@ Part of the same personal ecosystem as [Aurora](https://github.com/Mullassery/au
   separate logic lives here, only presentation.
 
 See `ARCHITECTURE.md` for the full crate-by-crate design and `ROADMAP.md` for
-the phased plan beyond this (deep tracing, containers, log correlation, an
-optional AI narrative layer, packaging).
+the phased plan and exact per-item status beyond this.
 
-## Non-goals this pass
+## Not yet started
 
-No eBPF/perf/strace integration, no persistent history storage (in-memory
-only), no LLM-backed narrative generation. `sher trace` and `sher profile`
-are honest `Unsupported` errors, not silent no-ops — see the "no fake
-stubs" note in `CLAUDE.md`.
+Phase 6 (a `SherKernelAdapter` consuming native SHER Kernel telemetry once
+it exists — blocked on SHER Kernel itself shipping that) and Phase 7 (an
+optional, opt-in LLM narrative layer over `Finding`/`Evidence`, explicitly
+never replacing the deterministic evidence engine). Neither has any code
+yet — see `ROADMAP.md` for the full description of each.
+
+## Install
+
+Packages are built and verified (Phase 8: `.deb`, `.rpm`, an AUR
+`PKGBUILD`) but not yet published anywhere (no tagged GitHub release, no
+distro repo) — build from source for now.
 
 ## Building
 
