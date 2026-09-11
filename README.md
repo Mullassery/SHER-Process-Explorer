@@ -59,6 +59,4 @@ cargo test --workspace
 
 ## License
 
-SHER Free Use & Proprietary Software License — see `LICENSE`. Free to use;
-proprietary source, no redistribution or relicensing. Copyright © 2026
-SHER. All rights reserved.
+Apache License 2.0 — see `LICENSE`. Copyright © 2026 SHER.
