@@ -1,5 +1,7 @@
 # SHER Process Explorer
 
+[![CI](https://github.com/Mullassery/SHER-Process-Explorer/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/SHER-Process-Explorer/actions/workflows/ci.yml)
+
 Makes Linux's process-level reality *understandable*. Instead of forcing a
 user to manually combine `top`/`ps`/`lsof`/`ss`/`strace`/`perf`/`journalctl`
 and stitch the story together by hand, SHER Process Explorer answers "what is
@@ -94,6 +96,27 @@ unit tests are fixture-based and run on any OS:
 cargo build --workspace
 cargo test --workspace
 ```
+
+## Docs
+
+- `ARCHITECTURE.md` — full crate-by-crate design, dependency diagram
+  (including the reserved, unbuilt `SherKernelAdapter` seam).
+- `ROADMAP.md` — the detailed, phase-by-phase build record and how each
+  phase was validated.
+- `ROADMAP_HONEST.md` — a blunt status/technical-debt audit supplement to
+  `ROADMAP.md`: what's been independently re-verified, what hasn't, and
+  concrete debt findings by file/line.
+- `CLAUDE.md` — the architectural philosophy and non-negotiables (no fake
+  stubs, evidence not guesses, degrade never panic) for anyone (human or
+  AI) extending this codebase.
+- `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`.
+
+## Contributing
+
+See `CONTRIBUTING.md` for the development workflow, required checks
+(`cargo build`/`test`/`clippy`/`fmt`), and this project's architectural
+rules. This is a single-maintainer project (see `SECURITY.md`) — review
+happens on a best-effort basis, not a fixed schedule.
 
 ## License
 

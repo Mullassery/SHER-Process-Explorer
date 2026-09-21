@@ -2,21 +2,35 @@
 
 ## Layering
 
-```
-sher-pe-cli   sher-pe-gui
-    │              │  depend on
-    └──────┬───────┘
-           ▼
-sher-pe-investigation
-    │  depends on
-    ▼
-sher-pe-intelligence
-    │  depends on
-    ▼
-sher-pe-telemetry
-    │  depends on
-    ▼
-sher-pe-model
+```mermaid
+flowchart TB
+    CLI["sher-pe-cli\n(sher binary)"]
+    GUI["sher-pe-gui\n(sher-gui binary)"]
+    DAEMON["sher-pe-daemon\n(sherd binary)"]
+    INVEST["sher-pe-investigation\n(deterministic \"why\" engine)"]
+    INTEL["sher-pe-intelligence\n(tree / rollups / history / timeline)"]
+    HISTORY["sher-pe-history\n(SQLite persistence)"]
+    TELEM["sher-pe-telemetry\nTelemetryAdapter trait"]
+    LINUX["linux::LinuxAdapter\n(hand-rolled /proc parsing)"]
+    KERNEL["SherKernelAdapter\n(Phase 6 — reserved seam, NOT BUILT)"]
+    MODEL["sher-pe-model\n(pure data types, no I/O)"]
+
+    CLI --> INVEST
+    CLI --> INTEL
+    GUI --> INVEST
+    GUI --> INTEL
+    DAEMON --> INTEL
+    DAEMON --> HISTORY
+    INVEST --> INTEL
+    INTEL --> TELEM
+    HISTORY --> MODEL
+    TELEM --> MODEL
+    TELEM -.implements.-> LINUX
+    TELEM -.would implement.-> KERNEL
+    LINUX --> MODEL
+
+    classDef notbuilt fill:none,stroke:#999,stroke-dasharray: 4 3,color:#999;
+    class KERNEL notbuilt;
 ```
 
 `sher-pe-model` has no I/O and no dependency on anything else in this
@@ -28,10 +42,20 @@ pass-throughs for exactly the on-demand reads `why_cpu`/`why_network`/
 `why_disk` need, alongside the tracked history `why_memory` uses); it only
 takes `sher-pe-telemetry` as a dev-dependency, to build a
 `MockTelemetryAdapter`-backed `ProcessIntelligence` in its own tests.
-`sher-pe-cli` and `sher-pe-gui` are the only crates allowed to depend on
-both `sher-pe-intelligence` and `sher-pe-investigation` directly — siblings
-at the same level, calling the exact same API, never one depending on the
-other.
+`sher-pe-cli`, `sher-pe-gui`, and `sher-pe-daemon` are the only crates
+allowed to depend on `sher-pe-intelligence` directly from the binary layer;
+`sher-pe-cli`/`sher-pe-gui` additionally depend on `sher-pe-investigation`
+directly — siblings at the same level, calling the exact same API, never
+one depending on the other. `sher-pe-daemon` depends on `sher-pe-history`
+instead, since its job is persistence, not investigation.
+
+**`SherKernelAdapter` (dashed box above) does not exist yet.** It is
+Phase 6 in `ROADMAP.md`: a second `TelemetryAdapter` implementation,
+consuming native SHER Kernel process telemetry once SHER Kernel ships it,
+dropped in alongside `linux::LinuxAdapter` without changing
+`sher-pe-intelligence`, `sher-pe-investigation`, the CLI, the GUI, or the
+daemon. It is shown here only to make the reserved seam concrete, not
+because any code backs it.
 
 ## `sher-pe-model`
 
@@ -222,6 +246,47 @@ instead. `SherApp` re-runs `intel.refresh()` every 2 seconds
 (`REFRESH_INTERVAL`) so CPU% — computed from tick deltas across two ticks —
 becomes meaningful shortly after the window opens, rather than staying at
 0% forever the way a one-shot CLI invocation would.
+
+## `sher-pe-history`
+
+Persistent, long-term process history — the piece `sher-pe-intelligence`
+deliberately doesn't provide, since its in-memory history/timeline are
+capacity-bounded (120 ticks, 1000 events) and gone the moment a process is
+dropped and the CLI/GUI invocation exits. Depends only on `sher-pe-model`
+(pure persistence over its types) — no telemetry dependency, so it can't
+accidentally grow logic that belongs in `sher-pe-intelligence`.
+
+`HistoryStore` wraps a real SQLite connection (`rusqlite`, `bundled`
+feature — no system `libsqlite3` needed) with two tables, `snapshots` and
+`timeline_events`, both indexed by pid and time and keyed by `(pid,
+start_time)` (same PID-reuse-safe key `sher-pe-intelligence` uses in
+memory, not bare `Pid`). `HistoryStore::open(path)` creates parent
+directories and migrates the schema if needed; `open_in_memory()` gives
+tests a real SQLite connection that never touches disk. `prune_older_than`
+bounds retention. `HistoryError` wraps both `rusqlite::Error` and
+`serde_json::Error` (snapshots/events are stored as JSON blobs alongside
+indexed pid/time columns for fast range queries without a wide relational
+schema).
+
+## `sher-pe-daemon`
+
+`sherd`, meant to run under systemd (`packaging/systemd/sherd.service`),
+not self-daemonizing (no fork/setsid — systemd already supervises
+long-running foreground processes). `main()` builds a
+`ProcessIntelligence` over the real `linux::LinuxAdapter` and a
+`HistoryStore` at `--db` (default: `/var/lib/sher/history.db` when
+`geteuid() == 0`, else `~/.local/share/sher/history.db`), then loops on a
+fixed `--interval-secs` (default 5): `refresh_at`, persist every current
+snapshot, persist each tick's *new* timeline events only (via
+`ProcessIntelligence::recent_timeline_events(since)`, so the same event
+isn't re-written every tick), and periodically prune anything older than
+`--retention-days` (default 7). A `SIGTERM`/`SIGINT` handler
+(`handle_shutdown_signal`) flips an `AtomicBool` that `sleep_interruptible`
+polls in 200ms steps, so a systemd `stop` doesn't have to wait out a full
+tick interval before the process actually exits. No unit tests of its own
+(it is thin wiring over already-tested `sher-pe-intelligence`/
+`sher-pe-history` APIs); validated end-to-end on real Linux instead
+(ROADMAP.md Phase 8).
 
 ## Risk notes
 

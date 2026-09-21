@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in sher/sher-gui/sherd doesn't work as documented
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: `sher`/`sherd` only run on Linux (the CLI checks
+        `cfg!(target_os = "linux")` and refuses elsewhere by design — that's
+        not a bug). `sher-gui` opens on any OS but only shows real data on
+        Linux. See README.md and ARCHITECTURE.md if you're unsure whether
+        what you're seeing is expected.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Output of `sher --version`, or the git commit you built from.
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS / distro
+      description: e.g. Ubuntu 24.04, Fedora 40, Arch Linux. Include kernel version (`uname -r`) if relevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command run
+      description: The exact `sher`/`sher-gui`/`sherd` invocation, including flags.
+      render: sh
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Full output/error, not a paraphrase. Redact anything sensitive (process command lines, env vars, paths) if needed.
+      render: sh
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Container/VM involved? Root vs. non-root? Any relevant `/proc` peculiarity?

@@ -1,0 +1,47 @@
+name: Feature request
+description: Propose a new capability or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check `ROADMAP.md` and `ROADMAP_HONEST.md` first — your idea may
+        already be a named, scoped "pending" item (e.g. Phase 10's
+        trend-over-time narrative, syscall aggregation, GUI signal-picker
+        parity) rather than something new to design from scratch.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What can't you currently do with `sher`/`sher-gui`/`sherd` that you want to?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: >
+        If you have one. Note this project's architecture: `sher-pe-cli`
+        and `sher-pe-gui` must call `sher-pe-intelligence`/
+        `sher-pe-investigation`, never implement logic themselves
+        (see ARCHITECTURE.md/CLAUDE.md's "one API, many consumers" rule);
+        new telemetry must degrade gracefully rather than panic; new "why"
+        findings need real `Evidence`, not a guess dressed up as one.
+
+  - type: dropdown
+    id: fit
+    attributes:
+      label: Does this fit the project's stated scope?
+      description: >
+        SHER Process Explorer investigates *why a process is behaving this
+        way*, not general system monitoring (see ROADMAP.md Phase 10's
+        Adopt/Adapt/Observe/Reject framing for what was deliberately kept
+        out, e.g. energy-impact scores, per-core system detail, GPU history).
+      options:
+        - "Yes — investigation/evidence-focused"
+        - "Not sure"
+        - "Adjacent — general system monitoring"
+    validations:
+      required: true

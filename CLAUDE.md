@@ -12,19 +12,24 @@ justified it, and a `Confidence` that is never rounded up past what the data
 actually supports.
 
 This is also a deliberate architectural exercise in **one API, many
-consumers**: `sher-pe-cli` today, a future desktop GUI in Phase 1, never
-touch telemetry internals directly. They both call `sher-pe-intelligence` /
-`sher-pe-investigation`. If a feature can only be reached from the CLI, that
-is a bug in the layering, not a CLI feature.
+consumers**: `sher-pe-cli` and `sher-pe-gui` (the desktop GUI, shipped in
+Phase 1) never touch telemetry internals directly. They both call
+`sher-pe-intelligence` / `sher-pe-investigation`. If a feature can only be
+reached from the CLI, that is a bug in the layering, not a CLI feature.
 
 ## No fake stubs
 
-Anything not implemented this pass says so honestly. `Tier::ShortSample` /
-`Profile` / `DeepTrace` return `TelemetryError::Unsupported`. `sher trace` /
-`sher profile` print "requires Level 3/4 tracing, not yet built" and exit
-non-zero. Nothing pretends to work by returning empty/zero data where real
-data was expected — a missing capability is a typed error, not a silent
-default.
+Anything not implemented says so honestly rather than faking success.
+`Tier::ShortSample` / `Profile` / `DeepTrace` are all implemented for
+`LinuxAdapter` as of Phase 2/3 (`sher trace`/`sher profile`/`sher deep-trace`
+are real commands backed by `strace`/`perf`/`bpftrace`, not stubs); an
+adapter that doesn't implement a tier (e.g. a future `SherKernelAdapter`)
+returns a typed `TelemetryError::Unsupported` for it by default, never a
+silent empty/zero result. The same discipline applies everywhere: a missing
+capability is a typed error, not a silent default. See `ROADMAP.md` for
+exactly which phases/items are shipped vs. not started, and
+`ROADMAP_HONEST.md` for an honesty-audited summary plus known technical
+debt.
 
 ## Cross-repo boundary
 
@@ -47,14 +52,18 @@ crates/
 ├── sher-pe-telemetry/       # TelemetryAdapter trait + Linux implementation
 ├── sher-pe-intelligence/    # tree, rollups, history, timeline
 ├── sher-pe-investigation/   # rule-based "why" evidence engine
+├── sher-pe-history/         # persistence over sher-pe-model types (SQLite via rusqlite), no telemetry dependency
 ├── sher-pe-cli/             # `sher` binary
-└── sher-pe-gui/             # `sher-gui` binary (egui/eframe) — same APIs, different presentation
+├── sher-pe-gui/             # `sher-gui` binary (egui/eframe) — same APIs, different presentation
+└── sher-pe-daemon/          # `sherd` binary — samples on an interval, persists via sher-pe-history
 ```
 
-Dependency direction is strictly top-to-bottom: `sher-pe-cli` and
-`sher-pe-gui` each depend on `sher-pe-intelligence` + `sher-pe-investigation`,
-which depend on `sher-pe-telemetry`, which depends on `sher-pe-model`.
-Nothing depends upward, and the CLI and GUI never depend on each other.
+Dependency direction is strictly top-to-bottom: `sher-pe-cli`, `sher-pe-gui`,
+and `sher-pe-daemon` depend on `sher-pe-intelligence` + `sher-pe-investigation`
+(and, for the daemon, `sher-pe-history`), which depend on `sher-pe-telemetry`,
+which depends on `sher-pe-model`. Nothing depends upward, and the CLI/GUI/
+daemon never depend on each other. See `ARCHITECTURE.md` for the full
+crate-by-crate design (including a rendered dependency diagram).
 
 ## Testing discipline
 
@@ -64,13 +73,21 @@ Nothing depends upward, and the CLI and GUI never depend on each other.
   `root: &Path` specifically so tests never need real `/proc` or root — this
   is also what makes the parser layer testable on macOS despite the adapter
   being Linux-only.
-- Real-syscall paths (`sched_getaffinity`, live `/proc` reads) are
-  `#[cfg(target_os = "linux")]`-gated and validated separately (OrbStack
-  Ubuntu VM, not this dev machine).
+- Real-syscall paths (`sched_getaffinity`, live `/proc` reads, `perf`/
+  `strace`/`bpftrace`/`journalctl`/`docker`/`podman` shell-outs, real signal
+  delivery) are `#[cfg(target_os = "linux")]`-gated and validated separately
+  in privileged Docker containers (Ubuntu/Fedora/Debian/Arch — see
+  `ROADMAP.md` Phase 8 for exactly what was run where), not on this
+  (macOS) dev machine.
 - `sher-pe-intelligence` / `sher-pe-investigation`: tested against a
   hand-built `MockTelemetryAdapter` feeding multi-tick synthetic snapshots,
   so growth-detection thresholds are deterministic and don't touch real
   `/proc`.
+- `sher-pe-history`: unit-tested against a real (temp-file) SQLite database
+  via `rusqlite` — not mocked, since the whole point of the crate is real
+  persistence. `sher-pe-daemon` has no unit tests of its own (it is a thin
+  `main.rs` wiring `ProcessIntelligence` + `HistoryStore` on a timer); it was
+  validated end-to-end on real Linux instead (Phase 8).
 - `sher-pe-gui`: the one piece of real logic (`treeview::flatten_tree` —
   expand/collapse + search-filter behavior) is kept free of any `egui`
   dependency and unit-tested directly, the same way `sher-pe-model::tree`
