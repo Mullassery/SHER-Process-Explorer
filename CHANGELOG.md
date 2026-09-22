@@ -43,6 +43,23 @@ summary for people who just want the shape of what's shipped.
   structured comparison against MacTop/Process Explorer/htop/lsof/dtrace/
   Instruments/Procmon.
 
+### Fixed
+
+- `sher-pe-gui`'s process-control panel only exposed 2 of the 9 signals
+  `sher kill` supports (Terminate/Kill), breaking this project's own "one
+  API, many consumers" rule. Added `Signal::all()` to `sher-pe-model` as
+  the single source of truth both the CLI and GUI now walk, and a signal
+  picker in the GUI covering all 9, routed through the existing inline
+  confirmation flow.
+- `sher history --since-secs` accepted negative values, which silently
+  computed a cutoff in the future and made every query come back empty —
+  indistinguishable from "no history exists" even when history did. Now
+  rejected at the boundary with a clear error and a distinct exit code.
+- `crates/sher-pe-cli/Cargo.toml`'s `[package.metadata.deb]` `copyright`
+  field said `"2026, SHER"`, inconsistent with `LICENSE`'s actual copyright
+  holder (`Georgi Mullassery`). Aligned, with a regression test that reads
+  both files and fails if they diverge again.
+
 ### Known gaps (not started)
 
 - Phase 6: a `SherKernelAdapter` (second `TelemetryAdapter` implementation

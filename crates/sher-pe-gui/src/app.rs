@@ -103,6 +103,9 @@ pub struct SherApp {
     /// path, or an error. No file dialog dependency this pass — the file
     /// always goes to the current working directory, named after the pid.
     last_export_result: Option<(Pid, Result<std::path::PathBuf, String>)>,
+    /// Which signal the process-control picker currently has selected.
+    /// Defaults to `Signal::Term` (the same default `sher kill` uses).
+    selected_signal: Signal,
 }
 
 impl SherApp {
@@ -122,6 +125,7 @@ impl SherApp {
             pending_signal: None,
             last_signal_result: None,
             last_export_result: None,
+            selected_signal: Signal::Term,
         };
         app.refresh();
         app
@@ -364,9 +368,14 @@ impl SherApp {
         self.draw_process_control(ui, pid);
     }
 
-    /// Terminate/Kill buttons plus an inline confirmation step — signals
-    /// are real and irreversible (`Signal::Kill` especially), so nothing
-    /// is sent to `intel.send_signal` until the user confirms.
+    /// Quick Terminate/Kill buttons for the two most common signals, plus a
+    /// picker covering every signal `sher kill` supports (`Signal::all()`)
+    /// so the GUI doesn't offer a narrower signal set than the CLI does —
+    /// see `ROADMAP_HONEST.md`'s formerly-flagged GUI/CLI signal-picker
+    /// parity gap. All paths funnel through the same inline confirmation
+    /// step, since signals are real and irreversible (`Signal::Kill`
+    /// especially) — nothing is sent to `intel.send_signal` until the user
+    /// confirms.
     fn draw_process_control(&mut self, ui: &mut egui::Ui, pid: Pid) {
         ui.horizontal(|ui| {
             if ui.button("Terminate (SIGTERM)").clicked() {
@@ -380,6 +389,19 @@ impl SherApp {
                 .clicked()
             {
                 self.pending_signal = Some((pid, Signal::Kill));
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("Other signal:");
+            egui::ComboBox::from_id_salt("signal_picker")
+                .selected_text(self.selected_signal.to_string())
+                .show_ui(ui, |ui| {
+                    for signal in Signal::all() {
+                        ui.selectable_value(&mut self.selected_signal, signal, signal.to_string());
+                    }
+                });
+            if ui.button("Send").clicked() {
+                self.pending_signal = Some((pid, self.selected_signal));
             }
         });
 

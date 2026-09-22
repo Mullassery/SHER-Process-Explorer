@@ -121,7 +121,8 @@ enum Command {
     /// Requires `sherd` to have been running and sampling.
     History {
         pid: Pid,
-        /// Only show snapshots/events from the last N seconds.
+        /// Only show snapshots/events from the last N seconds. Must be
+        /// non-negative.
         #[arg(long, default_value_t = 86_400)]
         since_secs: i64,
         /// SQLite database path. Defaults to the same path `sherd` uses:

@@ -46,6 +46,27 @@ impl Signal {
             Signal::Cont => "SIGCONT",
         }
     }
+
+    /// Every signal `sher` knows how to send, in a stable order. The single
+    /// source of truth for "every signal-picking UI" — `sher-pe-cli`'s
+    /// `SignalArg` enum and `sher-pe-gui`'s process-control picker both walk
+    /// this list instead of each hand-maintaining their own subset, so the
+    /// two consumers can't silently drift apart on which signals are
+    /// offered (see `ROADMAP_HONEST.md`'s formerly-flagged GUI/CLI
+    /// signal-picker parity gap).
+    pub const fn all() -> [Signal; 9] {
+        [
+            Signal::Term,
+            Signal::Kill,
+            Signal::Hup,
+            Signal::Int,
+            Signal::Quit,
+            Signal::Usr1,
+            Signal::Usr2,
+            Signal::Stop,
+            Signal::Cont,
+        ]
+    }
 }
 
 impl std::fmt::Display for Signal {
@@ -71,5 +92,35 @@ mod tests {
         assert_eq!(Signal::Term.name(), "SIGTERM");
         assert_eq!(Signal::Kill.name(), "SIGKILL");
         assert_eq!(Signal::Cont.name(), "SIGCONT");
+    }
+
+    /// Regression test for the GUI/CLI signal-picker parity gap
+    /// `ROADMAP_HONEST.md` flagged: `sher kill` supported 9 named signals
+    /// while the GUI only exposed 2 (Term/Kill), via two independently
+    /// hand-maintained lists that had drifted apart. `Signal::all()` is now
+    /// the single list both consumers walk, so this test pins its exact
+    /// length and contents (every `.name()` value, no duplicates) — if a
+    /// signal is ever added to the enum without being added to `all()`, the
+    /// length assertion below catches it.
+    #[test]
+    fn all_contains_every_signal_exactly_once_in_a_stable_order() {
+        let all = Signal::all();
+        assert_eq!(all.len(), 9);
+        let mut seen = std::collections::HashSet::new();
+        for signal in all {
+            assert!(
+                seen.insert(signal.name()),
+                "{signal} listed twice in Signal::all()"
+            );
+        }
+        assert_eq!(
+            seen,
+            [
+                "SIGTERM", "SIGKILL", "SIGHUP", "SIGINT", "SIGQUIT", "SIGUSR1", "SIGUSR2",
+                "SIGSTOP", "SIGCONT",
+            ]
+            .into_iter()
+            .collect()
+        );
     }
 }

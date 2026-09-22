@@ -547,6 +547,15 @@ pub fn deep_trace(intel: &ProcessIntelligence, pid: Pid, duration_secs: u64, jso
 /// long ago it was sampled (unlike `timeline`, which only sees this
 /// process's own short-lived, in-memory `ProcessIntelligence` history).
 pub fn history(pid: Pid, since_secs: i64, db_path: &std::path::Path, json: bool) -> i32 {
+    // A negative `--since-secs` would silently compute `since = now +
+    // |since_secs|` below — a cutoff in the future — and every query would
+    // come back empty, which reads exactly like "no history exists" even
+    // when the database is full of it. Reject it at the boundary instead
+    // of letting it manifest as a confusing, silent empty result.
+    if since_secs < 0 {
+        eprintln!("sher: --since-secs must not be negative (got {since_secs})");
+        return 2;
+    }
     let store = match sher_pe_history::HistoryStore::open(db_path) {
         Ok(store) => store,
         Err(err) => {
@@ -830,5 +839,47 @@ fn print_finding(finding: &Finding) {
             "  - evidence ({}): {} — {}",
             evidence.source, evidence.description, evidence.raw
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A negative `--since-secs` used to fall straight through to
+    /// `HistoryStore::open` and compute `since = now + |since_secs|` — a
+    /// cutoff in the future — so every query came back empty, printing the
+    /// same "(no persisted history ...)" message (exit 0) a genuinely empty
+    /// database would. This must now be rejected before ever touching the
+    /// filesystem, with a distinct exit code (2) from "database not
+    /// found"/"empty result" (1/0) so scripts can tell "you asked wrong"
+    /// apart from "there's nothing there." The db path below is never
+    /// opened — if this regresses, this test would instead exercise
+    /// `HistoryStore::open` on a bogus path and most likely fail with exit
+    /// code 1, not 2.
+    #[test]
+    fn history_rejects_negative_since_secs_before_opening_the_database() {
+        let db_path = std::path::Path::new("/nonexistent/sher-history-negative-since-test.db");
+        assert_eq!(history(1, -5, db_path, false), 2);
+    }
+
+    /// Zero is the valid boundary ("everything up to right now"), not the
+    /// rejected case — pins the check to exactly `< 0`, not `<= 0`, by
+    /// proving it still reaches a real (temp, empty) database and returns
+    /// the normal "no history in this window" exit code (0), not the
+    /// validation-rejection exit code (2).
+    #[test]
+    fn history_zero_since_secs_is_accepted_and_reaches_the_database() {
+        let db_path = std::env::temp_dir().join(format!(
+            "sher-history-zero-since-test-{}-{}.db",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let exit_code = history(1, 0, &db_path, false);
+        let _ = std::fs::remove_file(&db_path);
+        assert_eq!(exit_code, 0);
     }
 }

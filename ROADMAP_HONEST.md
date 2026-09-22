@@ -119,13 +119,29 @@ messages or `ROADMAP.md`'s own claims.
 
 ## Technical debt (concrete, file:line)
 
-- **`crates/sher-pe-cli/Cargo.toml:29`** (`[package.metadata.deb]`
+- ~~**`crates/sher-pe-cli/Cargo.toml:29`** (`[package.metadata.deb]`
   `copyright = "2026, SHER"`) vs. **`LICENSE:189`** (`Copyright 2026 Georgi
   Mullassery`) — the `.deb` copyright holder string and the actual LICENSE
   file's copyright line name different entities ("SHER" the project vs.
   "Georgi Mullassery" the person). Not a legal problem (Apache-2.0 doesn't
   mandate a specific format), just an inconsistency worth aligning. Low
-  priority, cosmetic.
+  priority, cosmetic.~~ **Fixed 2026-09** (quick-fix pass): `copyright` now
+  reads `"2026, Georgi Mullassery"`, matching `LICENSE`. Regression-tested
+  by `crates/sher-pe-cli/tests/packaging_metadata.rs`, which reads both
+  files and fails if the holder strings ever diverge again.
+- ~~**`crates/sher-pe-cli/src/render.rs`'s `history()` had no lower-bound
+  check on `--since-secs`** — a negative value (e.g. `sher history 1
+  --since-secs=-5`) computed `since = now + |since_secs|`, a cutoff in the
+  future, so every query silently came back empty and printed the exact
+  same "(no persisted history ...)" message a genuinely empty database
+  would — indistinguishable from "sherd never ran" even when history
+  existed.~~ **Fixed 2026-09** (quick-fix pass, found during this pass, not
+  carried over from an earlier audit): `history()` now rejects `since_secs
+  < 0` before ever opening the database, with a distinct exit code (2)
+  from "database not found"/"empty result" (1/0). Regression-tested by
+  `render::tests::history_rejects_negative_since_secs_before_opening_the_database`
+  and `render::tests::history_zero_since_secs_is_accepted_and_reaches_the_database`
+  (the latter pins the boundary at `< 0`, not `<= 0`).
 - **`crates/sher-pe-telemetry/src/testing.rs`** — `pub mod testing`
   (not `#[cfg(test)]`-gated) exposing `MockTelemetryAdapter` with ~36
   `.unwrap()` calls, compiled into every consumer of `sher-pe-telemetry`
@@ -158,12 +174,22 @@ messages or `ROADMAP.md`'s own claims.
 - **ROADMAP.md's own Phase 10 "pending" items remain pending** (confirmed
   still true, not newly discovered): trend-over-time narrative/sparkline
   query layer, syscall aggregation over `deep_trace` (dtrace-style
-  `count()` by syscall), new `TimelineEventKind` variants for CPU
-  spikes/syscall bursts, and **GUI signal-picker parity** — the CLI's
-  `sher kill` supports 9 named signals, the GUI's Terminate/Kill buttons
-  only expose 2, which `ROADMAP.md` itself already correctly flags as
-  breaking this project's own "one API, many consumers" architectural
-  rule.
+  `count()` by syscall), and new `TimelineEventKind` variants for CPU
+  spikes/syscall bursts. ~~**GUI signal-picker parity** — the CLI's `sher
+  kill` supports 9 named signals, the GUI's Terminate/Kill buttons only
+  expose 2, which `ROADMAP.md` itself already correctly flags as breaking
+  this project's own "one API, many consumers" architectural rule.~~
+  **Fixed 2026-09** (quick-fix pass): `Signal::all()` (in
+  `crates/sher-pe-model/src/process_control.rs`) is now the single list
+  both the CLI's `SignalArg` and the GUI walk; `sher-pe-gui`'s
+  `draw_process_control` grew a signal picker (in addition to the existing
+  Terminate/Kill quick buttons) covering all 9 signals, routed through the
+  same inline-confirmation flow. Regression-tested by
+  `process_control::tests::all_contains_every_signal_exactly_once_in_a_stable_order`
+  in `sher-pe-model`, which pins `Signal::all()`'s length and contents; the
+  GUI wiring itself follows this project's existing GUI-testing convention
+  (only pure logic is unit-tested, rendering is verified by running the
+  binary — not repeated in this pass, see "Not re-verified this pass").
 - **Phase 6 (`SherKernelAdapter`) and Phase 7 (AI narrative layer): zero
   code exists.** Confirmed via full-tree grep — `SherKernelAdapter` appears
   only in doc comments (`sher-pe-telemetry/src/lib.rs`) describing the

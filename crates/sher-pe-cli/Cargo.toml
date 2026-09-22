@@ -28,7 +28,7 @@ libc = "0.2"
 [package.metadata.deb]
 name = "sher-process-explorer"
 maintainer = "Georgi Mammen Mullassery <mullassery@gmail.com>"
-copyright = "2026, SHER"
+copyright = "2026, Georgi Mullassery"
 license-file = ["../../LICENSE", "0"]
 extended-description = """\
 Evidence-based Linux process explorer. Answers what a process is doing \
