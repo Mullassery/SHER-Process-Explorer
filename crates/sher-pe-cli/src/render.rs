@@ -768,6 +768,12 @@ pub fn kill(
         return not_found_error(pid);
     };
     let process_name = process.name.clone();
+    // Captured now, verified again immediately before the signal actually
+    // goes out (see `send_signal_verified`) — the confirmation prompt
+    // below can sit waiting on the user for an arbitrary amount of time,
+    // which is exactly the window in which the kernel could recycle `pid`
+    // for an unrelated process.
+    let expected_start_time = process.start_time;
 
     if !yes {
         use std::io::Write;
@@ -796,7 +802,7 @@ pub fn kill(
         }
     }
 
-    let result = intel.send_signal(pid, signal);
+    let result = intel.send_signal_verified(pid, expected_start_time, signal);
     if json {
         #[derive(serde::Serialize)]
         struct KillResult {

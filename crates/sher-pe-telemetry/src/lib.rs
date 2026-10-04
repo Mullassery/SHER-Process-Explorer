@@ -61,6 +61,16 @@ pub enum TelemetryError {
     Unsupported(Tier),
     #[error("unsupported platform: {0}")]
     UnsupportedPlatform(String),
+    /// A pid that matched the identity a caller expected (same
+    /// `start_time`) when it was selected no longer does by the time the
+    /// caller actually acted on it (e.g. sent a signal) — the kernel
+    /// reused the pid for an unrelated process in between. Refusing with
+    /// this typed error, rather than silently signaling whatever process
+    /// now holds the pid, is the whole point of verifying identity before
+    /// a destructive `kill(2)` call; see
+    /// `ProcessIntelligence::send_signal_verified`.
+    #[error("pid {pid} was reused by a different process (expected start_time {expected}, found {found}) — refusing to signal it")]
+    PidReused { pid: Pid, expected: u64, found: u64 },
 }
 
 /// The seam between the process-intelligence layer and however telemetry

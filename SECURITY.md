@@ -28,9 +28,19 @@ There is no dedicated security email address and no bug bounty program.
 - **`sher kill <pid>`** sends a real POSIX signal via `nix::sys::signal` (a
   thin wrapper over `kill(2)`) to a real process. It prompts for interactive
   confirmation by default; `--yes` skips that prompt. There is no dry-run
-  mode and no undo — a `SIGKILL` sent to the wrong pid kills the wrong
-  process, same as running `kill` directly. Treat `--yes` accordingly in
-  scripts.
+  mode and no undo. Both the CLI and GUI confirmation paths route through
+  `ProcessIntelligence::send_signal_verified`, which re-reads `pid` live
+  immediately before the signal goes out and refuses (a typed `PidReused`
+  error, no signal sent) if its `start_time` no longer matches what the
+  caller observed when it was selected — closing the window where the
+  kernel recycles `pid` onto an unrelated process while a confirmation
+  prompt (interactive, so arbitrarily long) is still on screen. This is
+  not airtight against every theoretical race (`kill(2)` by bare pid has
+  no equivalent of `pidfd_send_signal`'s atomicity, and the live re-read
+  itself has a — now very short — gap before the actual syscall), but it
+  removes the practical, human-timescale TOCTOU window. `--yes`/scripted
+  use skips interactive confirmation but still goes through the same
+  verified path when invoked from `sher kill`.
 - **`sherd` (the daemon)** is meant to run under systemd
   (`packaging/systemd/sherd.service`) and writes a SQLite database
   (`/var/lib/sher/history.db` when run as root, `~/.local/share/sher/history.db`

@@ -94,8 +94,13 @@ pub struct SherApp {
     cached_syscalls: Option<(Pid, Result<Vec<SyscallStat>, String>)>,
     /// A "Terminate"/"Kill" click awaiting explicit confirmation — signals
     /// are real and irreversible, so nothing is sent until the user
-    /// confirms this inline prompt.
-    pending_signal: Option<(Pid, Signal)>,
+    /// confirms this inline prompt. The `u64` is the `start_time` the
+    /// selected process reported at the moment of the click; it's carried
+    /// through to the eventual `send_signal_verified` call so a pid
+    /// recycled by the kernel while this confirmation sits on screen
+    /// (an arbitrarily long wait — it's a human in the loop) gets refused
+    /// rather than signaled as if it were still the same process.
+    pending_signal: Option<(Pid, u64, Signal)>,
     /// The outcome of the most recently *sent* signal, shown until the
     /// next signal is sent or a different process is selected.
     last_signal_result: Option<(Pid, Signal, Result<(), String>)>,
@@ -365,7 +370,7 @@ impl SherApp {
         }
 
         ui.separator();
-        self.draw_process_control(ui, pid);
+        self.draw_process_control(ui, pid, process.start_time);
     }
 
     /// Quick Terminate/Kill buttons for the two most common signals, plus a
@@ -374,12 +379,17 @@ impl SherApp {
     /// see `ROADMAP_HONEST.md`'s formerly-flagged GUI/CLI signal-picker
     /// parity gap. All paths funnel through the same inline confirmation
     /// step, since signals are real and irreversible (`Signal::Kill`
-    /// especially) — nothing is sent to `intel.send_signal` until the user
-    /// confirms.
-    fn draw_process_control(&mut self, ui: &mut egui::Ui, pid: Pid) {
+    /// especially) — nothing is sent to `intel.send_signal_verified` until
+    /// the user confirms. `start_time` is the selected process's
+    /// `start_time` as of this frame; it's carried into `pending_signal`
+    /// and re-checked live immediately before the actual `kill(2)` call,
+    /// since a human sitting on the confirmation prompt is an unbounded
+    /// TOCTOU window for the kernel to recycle `pid` onto an unrelated
+    /// process.
+    fn draw_process_control(&mut self, ui: &mut egui::Ui, pid: Pid, start_time: u64) {
         ui.horizontal(|ui| {
             if ui.button("Terminate (SIGTERM)").clicked() {
-                self.pending_signal = Some((pid, Signal::Term));
+                self.pending_signal = Some((pid, start_time, Signal::Term));
             }
             if ui
                 .button(
@@ -388,7 +398,7 @@ impl SherApp {
                 )
                 .clicked()
             {
-                self.pending_signal = Some((pid, Signal::Kill));
+                self.pending_signal = Some((pid, start_time, Signal::Kill));
             }
         });
         ui.horizontal(|ui| {
@@ -401,11 +411,11 @@ impl SherApp {
                     }
                 });
             if ui.button("Send").clicked() {
-                self.pending_signal = Some((pid, self.selected_signal));
+                self.pending_signal = Some((pid, start_time, self.selected_signal));
             }
         });
 
-        if let Some((confirm_pid, signal)) = self.pending_signal {
+        if let Some((confirm_pid, confirm_start_time, signal)) = self.pending_signal {
             if confirm_pid == pid {
                 ui.group(|ui| {
                     ui.colored_label(
@@ -423,7 +433,7 @@ impl SherApp {
                         if ui.button("Confirm").clicked() {
                             let result = self
                                 .intel
-                                .send_signal(pid, signal)
+                                .send_signal_verified(pid, confirm_start_time, signal)
                                 .map_err(|e| e.to_string());
                             self.last_signal_result = Some((pid, signal, result));
                             self.pending_signal = None;

@@ -347,7 +347,52 @@ impl ProcessIntelligence {
     /// have already confirmed this with the user — this method itself does
     /// not prompt or double-check, since it may be called from a
     /// non-interactive context (`--yes`, a scripted test).
+    ///
+    /// Prefer [`send_signal_verified`](Self::send_signal_verified) for any
+    /// caller that has a `start_time` to check against — the kernel
+    /// reuses pids, and the time between a user *deciding* to kill a
+    /// process (seeing it in a list, waiting out a confirmation prompt)
+    /// and this call actually running is exactly the TOCTOU window where
+    /// that pid can have been recycled for something else entirely. This
+    /// unverified variant stays in place only for the non-interactive
+    /// `--yes`/scripted case, where no prior identity snapshot exists to
+    /// check against — callers that *can* check must.
     pub fn send_signal(&self, pid: Pid, signal: Signal) -> Result<()> {
+        self.adapter.send_signal(pid, signal)
+    }
+
+    /// Like [`send_signal`](Self::send_signal), but refuses to signal `pid`
+    /// unless a fresh, live read of it right now still reports the same
+    /// `expected_start_time` the caller observed when the user chose to
+    /// act on it.
+    ///
+    /// This closes (does not merely narrow — the live read immediately
+    /// precedes the `kill(2)` call with no further delay in between) the
+    /// PID-reuse race in the destructive control path: `ProcessSnapshot`
+    /// is already keyed by `(pid, start_time)` everywhere else in this
+    /// crate (history, timeline) specifically because the kernel recycles
+    /// bare pids but never recycles `(pid, start_time)`; `send_signal`
+    /// alone did not apply that same discipline to the one operation
+    /// where getting it wrong sends a real, irreversible signal (often
+    /// `SIGKILL`) to a process the caller never intended to touch.
+    ///
+    /// Returns `TelemetryError::NotFound` if `pid` no longer exists at
+    /// all, or `TelemetryError::PidReused` if it exists but its
+    /// `start_time` no longer matches — in both cases, no signal is sent.
+    pub fn send_signal_verified(
+        &self,
+        pid: Pid,
+        expected_start_time: u64,
+        signal: Signal,
+    ) -> Result<()> {
+        let live = self.adapter.process(pid)?;
+        if live.start_time != expected_start_time {
+            return Err(TelemetryError::PidReused {
+                pid,
+                expected: expected_start_time,
+                found: live.start_time,
+            });
+        }
         self.adapter.send_signal(pid, signal)
     }
 
@@ -632,6 +677,66 @@ mod tests {
             err,
             sher_pe_telemetry::TelemetryError::NotFound(999)
         ));
+    }
+
+    #[test]
+    fn send_signal_verified_sends_when_start_time_still_matches() {
+        let (mock, mut intel) = new_intelligence();
+        mock.set_process(snap(1, 0, 500, 0, 1000));
+        intel.refresh_at(1000).unwrap();
+
+        intel
+            .send_signal_verified(1, 500, sher_pe_model::Signal::Term)
+            .unwrap();
+
+        assert_eq!(mock.sent_signals(), vec![(1, sher_pe_model::Signal::Term)]);
+    }
+
+    #[test]
+    fn send_signal_verified_refuses_when_pid_was_reused() {
+        // The caller observed pid 1 with start_time 500 (e.g. from a GUI
+        // row rendered a moment ago). Before the signal actually goes
+        // out, that original process exits and the kernel hands pid 1 to
+        // a brand-new, unrelated process with a different start_time —
+        // the exact TOCTOU window this method exists to close.
+        let (mock, mut intel) = new_intelligence();
+        mock.set_process(snap(1, 0, 500, 0, 1000));
+        intel.refresh_at(1000).unwrap();
+
+        mock.remove_process(1);
+        mock.set_process(snap(1, 0, 999, 0, 1000)); // same pid, new process
+
+        let err = intel
+            .send_signal_verified(1, 500, sher_pe_model::Signal::Kill)
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            sher_pe_telemetry::TelemetryError::PidReused {
+                pid: 1,
+                expected: 500,
+                found: 999,
+            }
+        ));
+        // Above all, the signal must never have reached the adapter.
+        assert_eq!(mock.sent_signals(), Vec::new());
+    }
+
+    #[test]
+    fn send_signal_verified_to_exited_pid_is_a_typed_not_found_error_not_a_signal() {
+        let (mock, mut intel) = new_intelligence();
+        mock.set_process(snap(1, 0, 500, 0, 1000));
+        intel.refresh_at(1000).unwrap();
+
+        mock.remove_process(1); // exited outright, no reuse
+
+        let err = intel
+            .send_signal_verified(1, 500, sher_pe_model::Signal::Kill)
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            sher_pe_telemetry::TelemetryError::NotFound(1)
+        ));
+        assert_eq!(mock.sent_signals(), Vec::new());
     }
 
     #[test]
