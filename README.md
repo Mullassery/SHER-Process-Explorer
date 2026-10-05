@@ -1,16 +1,45 @@
 # SHER Process Explorer
 
 [![CI](https://github.com/Mullassery/SHER-Process-Explorer/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/SHER-Process-Explorer/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Rust Edition](https://img.shields.io/badge/edition-2021-orange.svg)](Cargo.toml)
 
-Makes Linux's process-level reality *understandable*. Instead of forcing a
-user to manually combine `top`/`ps`/`lsof`/`ss`/`strace`/`perf`/`journalctl`
-and stitch the story together by hand, SHER Process Explorer answers "what is
-this process doing, why, and what should I look at next" — with evidence
+**`ps aux` tells you a process exists. SHER Process Explorer tells you why it's
+misbehaving.**
+
+Instead of forcing a user to manually combine `top`/`ps`/`lsof`/`ss`/`strace`/
+`perf`/`journalctl` and stitch the story together by hand, it answers "what
+is this process doing, why, and what should I look at next" — with evidence
 pointing at the exact raw source for every claim it makes.
 
 Part of the same personal ecosystem as [Aurora](https://github.com/Mullassery/aurora)
 (look), Himalayas (feel), [SHER Kernel](https://github.com/Mullassery/SHER-KERNEL)
 (work differently), and TinyBridge (run safer).
+
+### The SHER family
+
+This repo stands alone (no Cargo dependency on any of these — see `CLAUDE.md`'s
+"Cross-repo boundary"), but is part of the same organization:
+
+- [**SHER-KERNEL**](https://github.com/Mullassery/SHER-KERNEL) — a userspace Rust
+  prototype of OS-kernel object-model, scheduling, memory, and driver-lifecycle concepts.
+- [**SHER-INPUT**](https://github.com/Mullassery/SHER-INPUT) — physical input device
+  normalization into a canonical, backend-agnostic event stream.
+- [**SHER-Graphics**](https://github.com/Mullassery/SHER-Graphics) — native graphics
+  architecture: a pure-Rust software GPU reference driver plus a real Vulkan/`ash` backend.
+- [**SHER-Display**](https://github.com/Mullassery/SHER-Display) — the display
+  server/compositor/window-manager layer, with Wayland/X11 compatibility and headless
+  operation planned.
+- [**SHER-Aurora**](https://github.com/Mullassery/SHER-Aurora) — a GTK4/GNOME-oriented
+  Rust design system.
+
+---
+
+### Contents
+
+[Use cases](#use-cases) · [What's here](#whats-here) · [Not yet started](#not-yet-started) ·
+[Install](#install) · [Building](#building) · [Linux / Ubuntu compatibility](#linux--ubuntu-compatibility) ·
+[Docs](#docs) · [Contributing](#contributing) · [License](#license)
 
 ## Use cases
 
@@ -99,21 +128,28 @@ cargo test --workspace
 
 ## Linux / Ubuntu compatibility
 
-Verified 2026-10 (see org-wide `SHER-LINUX-RUST-COMPATIBILITY.md`):
+Verified 2026-10 (see the org-wide `SHER-LINUX-RUST-COMPATIBILITY.md` audit):
 
-- **Ubuntu**: 24.04 LTS and 26.04 LTS, confirmed via real Docker containers.
-- **Architecture**: x86_64 and arm64, both confirmed.
-- **Rust**: stable, no special MSRV requirement.
-- **cgroup v1/v2**: already correct. `/proc/[pid]/cgroup` parsing detects pure-v2 (single
-  line, hierarchy_id 0) vs. v1 (multi-hierarchy union) from the file's own shape, and only
-  reads `cgroup.controllers` from the unified v2 tree — it never depends on v1-only sysfs
-  files existing. This matters concretely because Ubuntu 26.04's systemd 259 removed cgroup
-  v1 mounting entirely (no `/sys/fs/cgroup/systemd`, no `memory.limit_in_bytes`); this tool
-  was already correct before that change shipped.
-- **Known limitations**: `cargo audit`/`cargo deny` wired into CI but never observed to
-  execute (no network route to the advisory DB in any sandbox tested so far — pre-existing,
-  tracked). One unmaintained transitive dependency (`ttf-parser`, RUSTSEC-2026-0192, no live
-  vulnerability, no upstream fix available yet).
+| | |
+|---|---|
+| **Ubuntu** | 24.04 LTS and 26.04 LTS, confirmed via real Docker containers |
+| **Architecture** | x86_64 and arm64, both confirmed |
+| **Rust** | stable, no special MSRV requirement |
+| **cgroup v1/v2** | already correct (see below) |
+
+`/proc/[pid]/cgroup` parsing detects pure-v2 (single line, hierarchy_id 0) vs.
+v1 (multi-hierarchy union) from the file's own shape, and only reads
+`cgroup.controllers` from the unified v2 tree — it never depends on v1-only
+sysfs files existing. This matters concretely because Ubuntu 26.04's systemd
+259 removed cgroup v1 mounting entirely (no `/sys/fs/cgroup/systemd`, no
+`memory.limit_in_bytes`); this tool was already correct before that change
+shipped.
+
+**Known limitations:** `cargo audit`/`cargo deny` are wired into CI but have
+never been observed to execute (no network route to the advisory DB in any
+sandbox tested so far — pre-existing, tracked). One unmaintained transitive
+dependency (`ttf-parser`, RUSTSEC-2026-0192, no live vulnerability, no
+upstream fix available yet).
 
 ## Docs
 
