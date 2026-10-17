@@ -3004,7 +3004,7 @@ dependencies = [
  "rusqlite",
  "serde_json",
  "sher-pe-model",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -3013,7 +3013,7 @@ version = "0.1.0"
 dependencies = [
  "sher-pe-model",
  "sher-pe-telemetry",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
  "tracing",
 ]
 
@@ -3042,7 +3042,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sher-pe-model",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
  "tracing",
 ]
 
