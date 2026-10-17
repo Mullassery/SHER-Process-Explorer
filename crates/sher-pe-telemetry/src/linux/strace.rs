@@ -77,15 +77,30 @@ fn parse_strace_summary(stderr: &str, path: &Path) -> Result<Vec<SyscallStat>> {
         if fields.last() == Some(&"total") {
             continue;
         }
-        let time_percent = fields[0].parse::<f64>().map_err(|_| {
-            crate::linux::procfs::common::parse_err(path, format!("bad %time '{}'", fields[0]))
-        })?;
-        let seconds = fields[1].parse::<f64>().map_err(|_| {
-            crate::linux::procfs::common::parse_err(path, format!("bad seconds '{}'", fields[1]))
-        })?;
-        let calls = fields[3].parse::<u64>().map_err(|_| {
-            crate::linux::procfs::common::parse_err(path, format!("bad calls '{}'", fields[3]))
-        })?;
+        // A single malformed row must not fail the whole sample: skip it and
+        // keep the rows that did parse (same degrade-never-panic discipline
+        // as the /proc parsers).
+        let time_percent = match fields[0].parse::<f64>() {
+            Ok(v) => v,
+            Err(_) => {
+                tracing::warn!(path = %path.display(), field = fields[0], "skipping malformed strace summary row");
+                continue;
+            }
+        };
+        let seconds = match fields[1].parse::<f64>() {
+            Ok(v) => v,
+            Err(_) => {
+                tracing::warn!(path = %path.display(), field = fields[1], "skipping malformed strace summary row");
+                continue;
+            }
+        };
+        let calls = match fields[3].parse::<u64>() {
+            Ok(v) => v,
+            Err(_) => {
+                tracing::warn!(path = %path.display(), field = fields[3], "skipping malformed strace summary row");
+                continue;
+            }
+        };
         let (errors, name) = if fields.len() >= 6 {
             let errors = fields[4].parse::<u64>().unwrap_or(0);
             (errors, fields[5])
@@ -138,6 +153,22 @@ mod tests {
         let stats = parse_strace_summary(stderr, Path::new("test")).unwrap();
         assert_eq!(stats.len(), 1);
         assert_eq!(stats[0].name, "read");
+    }
+
+    #[test]
+    fn parse_strace_summary_skips_malformed_row_keeps_good_ones() {
+        let stderr = "\
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 45.23    0.001234          12       102           read
+ oops     not-a-number       x       n/a          broken
+ 30.11    0.000821           8       102         2 write
+";
+        let stats = parse_strace_summary(stderr, Path::new("test")).unwrap();
+        assert_eq!(stats.len(), 2);
+        assert_eq!(stats[0].name, "read");
+        assert_eq!(stats[1].name, "write");
+        assert_eq!(stats[1].errors, 2);
     }
 
     #[test]

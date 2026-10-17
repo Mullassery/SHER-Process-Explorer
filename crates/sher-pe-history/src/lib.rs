@@ -177,9 +177,9 @@ impl HistoryStore {
         Ok(count as u64)
     }
 
-    /// The most recent `sampled_at` recorded for any pid, if any snapshot
-    /// has ever been written. Used by `sherd` to report how far back its
-    /// own history already reaches on startup.
+    /// The oldest (earliest) `sampled_at` recorded for any pid, if any
+    /// snapshot has ever been written. Used by `sherd` to report how far
+    /// back its own history already reaches on startup.
     pub fn oldest_sampled_at(&self) -> Result<Option<i64>> {
         self.conn
             .query_row("SELECT MIN(sampled_at) FROM snapshots", [], |row| {

@@ -142,7 +142,11 @@ fn main() {
     let mut intel = ProcessIntelligence::new(Box::new(adapter));
 
     let interval = Duration::from_secs(cli.interval_secs.max(1));
-    let retention_secs = (cli.retention_days.max(1) * 86_400) as i64;
+    let retention_secs = cli
+        .retention_days
+        .max(1)
+        .saturating_mul(86_400)
+        .min(i64::MAX as u64) as i64;
     let prune_every_secs: i64 = 3600;
     let mut last_prune = now_unix();
 
