@@ -76,14 +76,46 @@ impl HistoryStore {
             CREATE TABLE IF NOT EXISTS timeline_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 pid INTEGER NOT NULL,
+                start_time INTEGER NOT NULL DEFAULT 0,
                 at INTEGER NOT NULL,
                 event_json TEXT NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS idx_events_pid ON timeline_events(pid);
-            CREATE INDEX IF NOT EXISTS idx_events_at ON timeline_events(at);
             ",
         )?;
+
+        // Migration for databases created before `timeline_events` was keyed
+        // by `(pid, start_time)`: the CREATE TABLE above is a no-op on an
+        // existing table, so add the column in place if it is missing. Rows
+        // written by the old schema get `start_time = 0`; their events can no
+        // longer be attributed to a specific generation, which is exactly the
+        // ambiguity this column exists to remove. This must happen before the
+        // index on `(pid, start_time)` is created.
+        if !Self::column_exists(conn, "timeline_events", "start_time")? {
+            conn.execute_batch(
+                "ALTER TABLE timeline_events
+                     ADD COLUMN start_time INTEGER NOT NULL DEFAULT 0;",
+            )?;
+        }
+
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_events_pid_start
+                 ON timeline_events(pid, start_time);
+             CREATE INDEX IF NOT EXISTS idx_events_at ON timeline_events(at);",
+        )?;
         Ok(())
+    }
+
+    /// Whether `table` currently has a column named `column`.
+    fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool> {
+        let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+        let mut rows = stmt.query([])?;
+        while let Some(row) = rows.next()? {
+            let name: String = row.get(1)?;
+            if name == column {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// Records one process snapshot, taken at `sampled_at` (unix seconds).
@@ -103,21 +135,26 @@ impl HistoryStore {
         Ok(())
     }
 
-    /// Records one timeline event.
+    /// Records one timeline event, keyed by `(event.pid, event.start_time)`
+    /// so it can be attributed to the exact process generation it was
+    /// observed in.
     pub fn record_event(&self, event: &TimelineEvent) -> Result<()> {
         let json = serde_json::to_string(event)?;
         self.conn.execute(
-            "INSERT INTO timeline_events (pid, at, event_json) VALUES (?1, ?2, ?3)",
-            params![event.pid, event.at, json],
+            "INSERT INTO timeline_events (pid, start_time, at, event_json)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![event.pid, event.start_time as i64, event.at, json],
         )?;
         Ok(())
     }
 
-    /// Every persisted snapshot for `pid`, oldest first, sampled at or
-    /// after `since` (unix seconds). Spans every `(pid, start_time)`
-    /// generation of that bare pid unless `start_time` is used to filter
-    /// further by the caller — kept simple since the common query is
-    /// "show me everything about pid N recently," not a specific run.
+    /// Every persisted snapshot for the *bare* `pid`, oldest first, sampled
+    /// at or after `since` (unix seconds). Spans **every** `(pid, start_time)`
+    /// generation of that pid — each returned `ProcessSnapshot` carries its
+    /// own `start_time`, so a caller that cares about a single run must group
+    /// or filter by it (or use [`Self::snapshots_for_generation`], which
+    /// filters in SQL). Kept for the common "everything about pid N recently"
+    /// query.
     pub fn snapshots_for(&self, pid: Pid, since: i64) -> Result<Vec<(i64, ProcessSnapshot)>> {
         let mut stmt = self.conn.prepare(
             "SELECT sampled_at, snapshot_json FROM snapshots
@@ -138,8 +175,38 @@ impl HistoryStore {
         Ok(result)
     }
 
-    /// Every persisted timeline event for `pid`, oldest first, at or
-    /// after `since` (unix seconds).
+    /// Every persisted snapshot for exactly one process generation,
+    /// identified by `(pid, start_time)`, oldest first, sampled at or after
+    /// `since` (unix seconds). Never mixes recycled-PID generations.
+    pub fn snapshots_for_generation(
+        &self,
+        pid: Pid,
+        start_time: u64,
+        since: i64,
+    ) -> Result<Vec<(i64, ProcessSnapshot)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT sampled_at, snapshot_json FROM snapshots
+             WHERE pid = ?1 AND start_time = ?2 AND sampled_at >= ?3
+             ORDER BY sampled_at ASC",
+        )?;
+        let rows = stmt.query_map(params![pid, start_time as i64, since], |row| {
+            let sampled_at: i64 = row.get(0)?;
+            let json: String = row.get(1)?;
+            Ok((sampled_at, json))
+        })?;
+        let mut result = Vec::new();
+        for row in rows {
+            let (sampled_at, json) = row?;
+            let snapshot: ProcessSnapshot = serde_json::from_str(&json)?;
+            result.push((sampled_at, snapshot));
+        }
+        Ok(result)
+    }
+
+    /// Every persisted timeline event for the *bare* `pid`, oldest first, at
+    /// or after `since` (unix seconds). Spans every `(pid, start_time)`
+    /// generation; each `TimelineEvent` carries its own `start_time`, so use
+    /// [`Self::events_for_generation`] to scope to one run.
     pub fn events_for(&self, pid: Pid, since: i64) -> Result<Vec<TimelineEvent>> {
         let mut stmt = self.conn.prepare(
             "SELECT event_json FROM timeline_events
@@ -147,6 +214,30 @@ impl HistoryStore {
              ORDER BY at ASC",
         )?;
         let rows = stmt.query_map(params![pid, since], |row| row.get::<_, String>(0))?;
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(serde_json::from_str(&row?)?);
+        }
+        Ok(result)
+    }
+
+    /// Every persisted timeline event for exactly one process generation,
+    /// identified by `(pid, start_time)`, oldest first, at or after `since`
+    /// (unix seconds).
+    pub fn events_for_generation(
+        &self,
+        pid: Pid,
+        start_time: u64,
+        since: i64,
+    ) -> Result<Vec<TimelineEvent>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT event_json FROM timeline_events
+             WHERE pid = ?1 AND start_time = ?2 AND at >= ?3
+             ORDER BY at ASC",
+        )?;
+        let rows = stmt.query_map(params![pid, start_time as i64, since], |row| {
+            row.get::<_, String>(0)
+        })?;
         let mut result = Vec::new();
         for row in rows {
             result.push(serde_json::from_str(&row?)?);
@@ -248,6 +339,7 @@ mod tests {
         let store = HistoryStore::open_in_memory().unwrap();
         let event = TimelineEvent {
             pid: 7,
+            start_time: 1234,
             at: 500,
             kind: TimelineEventKind::Exited {
                 exit_reason: Some("OOM".into()),
@@ -269,6 +361,7 @@ mod tests {
         store
             .record_event(&TimelineEvent {
                 pid: 1,
+                start_time: 100,
                 at: 100,
                 kind: TimelineEventKind::Started,
                 description: "started".into(),
@@ -296,6 +389,82 @@ mod tests {
         assert_eq!(history.len(), 2);
         assert_eq!(history[0].1.start_time, 100);
         assert_eq!(history[1].1.start_time, 999);
+    }
+
+    #[test]
+    fn generation_scoped_queries_separate_reused_pid_runs() {
+        // Two distinct runs that both had bare pid 1 (kernel PID reuse).
+        let store = HistoryStore::open_in_memory().unwrap();
+        store.record_snapshot(&snap(1, 100, 1000), 100).unwrap();
+        store.record_snapshot(&snap(1, 999, 5000), 200).unwrap();
+        store
+            .record_event(&TimelineEvent {
+                pid: 1,
+                start_time: 100,
+                at: 100,
+                kind: TimelineEventKind::Started,
+                description: "run at start_time=100".into(),
+            })
+            .unwrap();
+        store
+            .record_event(&TimelineEvent {
+                pid: 1,
+                start_time: 999,
+                at: 200,
+                kind: TimelineEventKind::Started,
+                description: "run at start_time=999".into(),
+            })
+            .unwrap();
+
+        // Bare-pid queries still return every generation...
+        assert_eq!(store.snapshots_for(1, 0).unwrap().len(), 2);
+        assert_eq!(store.events_for(1, 0).unwrap().len(), 2);
+
+        // ...but generation-scoped queries never mix them.
+        let gen1_snaps = store.snapshots_for_generation(1, 100, 0).unwrap();
+        assert_eq!(gen1_snaps.len(), 1);
+        assert_eq!(gen1_snaps[0].1.start_time, 100);
+        assert_eq!(gen1_snaps[0].1.memory.rss, 1000);
+        let gen1_events = store.events_for_generation(1, 100, 0).unwrap();
+        assert_eq!(gen1_events.len(), 1);
+        assert_eq!(gen1_events[0].start_time, 100);
+
+        let gen2_snaps = store.snapshots_for_generation(1, 999, 0).unwrap();
+        assert_eq!(gen2_snaps.len(), 1);
+        assert_eq!(gen2_snaps[0].1.start_time, 999);
+        assert_eq!(gen2_snaps[0].1.memory.rss, 5000);
+        let gen2_events = store.events_for_generation(1, 999, 0).unwrap();
+        assert_eq!(gen2_events.len(), 1);
+        assert_eq!(gen2_events[0].start_time, 999);
+    }
+
+    #[test]
+    fn migration_adds_start_time_to_legacy_events_table() {
+        // Simulate a pre-migration database: `timeline_events` without a
+        // `start_time` column.
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE timeline_events (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 pid INTEGER NOT NULL,
+                 at INTEGER NOT NULL,
+                 event_json TEXT NOT NULL
+             );
+             CREATE TABLE snapshots (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 pid INTEGER NOT NULL,
+                 start_time INTEGER NOT NULL,
+                 sampled_at INTEGER NOT NULL,
+                 name TEXT NOT NULL,
+                 snapshot_json TEXT NOT NULL
+             );",
+        )
+        .unwrap();
+        HistoryStore::migrate(&conn).unwrap();
+        assert!(
+            HistoryStore::column_exists(&conn, "timeline_events", "start_time").unwrap(),
+            "migration must add the start_time column"
+        );
     }
 
     #[test]

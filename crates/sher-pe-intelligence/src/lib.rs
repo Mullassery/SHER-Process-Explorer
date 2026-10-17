@@ -136,13 +136,19 @@ impl ProcessIntelligence {
             if !previously_live {
                 pending_events.push(TimelineEvent {
                     pid,
+                    start_time: snap.start_time,
                     at: now,
                     kind: TimelineEventKind::Started,
                     description: format!("{} ({pid}) started", snap.name),
                 });
-                if self.current.contains_key(&snap.ppid) || new_current.contains_key(&snap.ppid) {
+                let parent_start_time = new_current
+                    .get(&snap.ppid)
+                    .or_else(|| self.current.get(&snap.ppid))
+                    .map(|s| s.start_time);
+                if let Some(parent_start_time) = parent_start_time {
                     pending_events.push(TimelineEvent {
                         pid: snap.ppid,
+                        start_time: parent_start_time,
                         at: now,
                         kind: TimelineEventKind::NewChild { child_pid: pid },
                         description: format!("new child process {pid} ({})", snap.name),
@@ -168,6 +174,7 @@ impl ProcessIntelligence {
                         if growth >= DEFAULT_GROWTH_THRESHOLD_PERCENT {
                             pending_events.push(TimelineEvent {
                                 pid,
+                                start_time: snap.start_time,
                                 at: now,
                                 kind: TimelineEventKind::MemoryGrowthThresholdCrossed {
                                     percent_growth: growth,
@@ -194,6 +201,7 @@ impl ProcessIntelligence {
                 for addr in addrs.difference(seen) {
                     pending_events.push(TimelineEvent {
                         pid,
+                        start_time: snap.start_time,
                         at: now,
                         kind: TimelineEventKind::NewConnection {
                             remote_addr: addr.clone(),
@@ -216,6 +224,7 @@ impl ProcessIntelligence {
         for key in old_keys.difference(&new_keys) {
             pending_events.push(TimelineEvent {
                 pid: key.0,
+                start_time: key.1,
                 at: now,
                 kind: TimelineEventKind::Exited { exit_reason: None },
                 description: format!("process {} exited", key.0),

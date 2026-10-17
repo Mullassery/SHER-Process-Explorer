@@ -26,6 +26,33 @@ extern "C" fn handle_shutdown_signal(_sig: libc::c_int) {
     SHUTDOWN.store(true, Ordering::SeqCst);
 }
 
+/// Install the SIGTERM/SIGINT shutdown handlers via `sigaction(2)`.
+///
+/// `libc::signal` has implementation-defined, platform-dependent semantics
+/// (whether the handler is reset to `SIG_DFL` after firing, whether the
+/// `SA_RESTART` flag is implied, and whether it reliably blocks the signal
+/// while the handler runs). `sigaction` is the well-specified interface;
+/// `SA_RESTART` is passed explicitly to preserve the previous
+/// "interrupted syscalls restart" behaviour on platforms where `signal`
+/// implied it.
+#[cfg(unix)]
+fn install_signal_handlers() {
+    use nix::sys::signal::{sigaction, SaFlags, SigAction, SigHandler, SigSet, Signal};
+
+    let action = SigAction::new(
+        SigHandler::Handler(handle_shutdown_signal),
+        SaFlags::SA_RESTART,
+        SigSet::empty(),
+    );
+
+    // SAFETY: `action` is a valid `SigAction` that outlives the call, and
+    // the handler only performs an atomic store (async-signal-safe).
+    unsafe {
+        sigaction(Signal::SIGTERM, &action).expect("failed to install SIGTERM handler");
+        sigaction(Signal::SIGINT, &action).expect("failed to install SIGINT handler");
+    }
+}
+
 #[derive(Parser)]
 #[command(
     name = "sherd",
@@ -110,11 +137,7 @@ fn main() {
     let db_path = cli.db.unwrap_or_else(default_db_path);
 
     #[cfg(unix)]
-    unsafe {
-        let handler = handle_shutdown_signal as *const () as libc::sighandler_t;
-        libc::signal(libc::SIGTERM, handler);
-        libc::signal(libc::SIGINT, handler);
-    }
+    install_signal_handlers();
 
     let history = match HistoryStore::open(&db_path) {
         Ok(store) => store,

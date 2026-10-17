@@ -1,10 +1,11 @@
 //! Human-readable + `--json` rendering for every `sher` subcommand. Each
 //! function returns the process exit code the caller should use.
 
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use sher_pe_intelligence::ProcessIntelligence;
-use sher_pe_model::{Finding, Pid, ProcessSnapshot};
+use sher_pe_model::{Finding, Pid, ProcessSnapshot, TimelineEvent};
 
 use crate::WhyAspect;
 
@@ -602,20 +603,39 @@ pub fn history(pid: Pid, since_secs: i64, db_path: &std::path::Path, json: bool)
         return 0;
     }
 
-    println!("=== Snapshots ({}) ===", snapshots.len());
+    // Group by process generation so a bare-pid query that spans recycled
+    // PIDs is never presented as one continuous run. Just like the store's
+    // queries, output is keyed by `(pid, start_time)`.
+    let mut generations: BTreeMap<u64, (Vec<(i64, &ProcessSnapshot)>, Vec<&TimelineEvent>)> =
+        BTreeMap::new();
     for (sampled_at, snap) in &snapshots {
-        println!(
-            "[{sampled_at}] {} rss={} KB cpu={:.1}% state={:?}",
-            snap.name,
-            snap.memory.rss / 1024,
-            snap.cpu.percent,
-            snap.state
-        );
+        generations
+            .entry(snap.start_time)
+            .or_default()
+            .0
+            .push((*sampled_at, snap));
+    }
+    for event in &events {
+        generations.entry(event.start_time).or_default().1.push(event);
     }
 
-    println!("\n=== Timeline events ({}) ===", events.len());
-    for event in &events {
-        println!("[{}] {}", event.at, event.description);
+    for (start_time, (gen_snapshots, gen_events)) in &generations {
+        println!("=== pid {pid} generation (start_time {start_time}) ===");
+        println!("--- Snapshots ({}) ---", gen_snapshots.len());
+        for (sampled_at, snap) in gen_snapshots {
+            println!(
+                "[{sampled_at}] {} rss={} KB cpu={:.1}% state={:?}",
+                snap.name,
+                snap.memory.rss / 1024,
+                snap.cpu.percent,
+                snap.state
+            );
+        }
+
+        println!("--- Timeline events ({}) ---", gen_events.len());
+        for event in gen_events {
+            println!("[{}] {}", event.at, event.description);
+        }
     }
 
     0
