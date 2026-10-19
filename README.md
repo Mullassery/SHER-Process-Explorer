@@ -72,6 +72,34 @@ cargo run -p sher-pe-cli -- history <pid>
 cargo run -p sher-pe-gui
 ```
 
+## OTLP export
+
+Export an investigation as an OTLP/JSON `ExportTraceServiceRequest` for an
+OpenTelemetry collector/backend:
+
+```bash
+sher export 1234 --otlp --output investigation.otlp.json
+```
+
+The root span carries `service.name`, process identity and finding count; each
+evidence-backed finding is emitted as a span event with severity, confidence
+and narrative attributes. Native JSON export remains the default. This is a
+file/OTLP JSON artifact, not a network exporter; submit it with your existing
+collector pipeline.
+
+## eBPF investigation scripts
+
+Curated bpftrace scripts cover the usual off-CPU/IO/run-queue blind spots:
+
+```bash
+sher ebpf <pid> --script offcpu --duration-secs 5
+sher ebpf <pid> --script iolatency --duration-secs 5
+sher ebpf <pid> --script runqlat --duration-secs 5
+```
+
+Requires `bpftrace`, tracefs, and ptrace/perf permissions. The scripts are
+shipped as text (no bundled binary) and include an automatic exit interval.
+
 ## Usage
 
 The CLI (`sher`) and GUI (`sher-gui`) present the same underlying APIs; `sherd` (`sher-pe-daemon`) samples on an interval and persists history. Build and test:

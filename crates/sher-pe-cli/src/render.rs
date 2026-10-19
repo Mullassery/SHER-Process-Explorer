@@ -9,6 +9,8 @@ use sher_pe_model::{Finding, Pid, ProcessSnapshot, TimelineEvent};
 
 use crate::WhyAspect;
 
+type Generations<'a> = BTreeMap<u64, (Vec<(i64, &'a ProcessSnapshot)>, Vec<&'a TimelineEvent>)>;
+
 fn print_json_or<T: serde::Serialize>(json: bool, value: &T, human: impl FnOnce()) {
     if json {
         match serde_json::to_string_pretty(value) {
@@ -606,8 +608,7 @@ pub fn history(pid: Pid, since_secs: i64, db_path: &std::path::Path, json: bool)
     // Group by process generation so a bare-pid query that spans recycled
     // PIDs is never presented as one continuous run. Just like the store's
     // queries, output is keyed by `(pid, start_time)`.
-    let mut generations: BTreeMap<u64, (Vec<(i64, &ProcessSnapshot)>, Vec<&TimelineEvent>)> =
-        BTreeMap::new();
+    let mut generations: Generations<'_> = BTreeMap::new();
     for (sampled_at, snap) in &snapshots {
         generations
             .entry(snap.start_time)
@@ -616,7 +617,11 @@ pub fn history(pid: Pid, since_secs: i64, db_path: &std::path::Path, json: bool)
             .push((*sampled_at, snap));
     }
     for event in &events {
-        generations.entry(event.start_time).or_default().1.push(event);
+        generations
+            .entry(event.start_time)
+            .or_default()
+            .1
+            .push(event);
     }
 
     for (start_time, (gen_snapshots, gen_events)) in &generations {
@@ -771,6 +776,96 @@ pub fn export(intel: &ProcessIntelligence, pid: Pid, output: Option<&std::path::
             0
         }
     }
+}
+
+/// Convert the native diagnostic report into OTLP/JSON for tracing backends.
+pub fn export_otlp(intel: &ProcessIntelligence, pid: Pid, output: Option<&std::path::Path>) -> i32 {
+    let Some(report) = sher_pe_investigation::diagnostic_report(intel, pid) else {
+        return not_found_error(pid);
+    };
+    let document = otlp_document(&report);
+    let json = match serde_json::to_string_pretty(&document) {
+        Ok(json) => json,
+        Err(err) => {
+            eprintln!("sher: failed to serialize OTLP report: {err}");
+            return 1;
+        }
+    };
+    match output {
+        Some(path) => match std::fs::write(path, &json) {
+            Ok(()) => {
+                println!("Wrote OTLP report for pid {pid} to {}", path.display());
+                0
+            }
+            Err(err) => {
+                eprintln!("sher: failed to write {}: {err}", path.display());
+                1
+            }
+        },
+        None => {
+            println!("{json}");
+            0
+        }
+    }
+}
+
+/// Build a minimal, spec-shaped OTLP/JSON ExportTraceServiceRequest.
+///
+/// One root span represents the investigation; each finding becomes an event
+/// with severity/confidence/evidence attributes.
+pub fn otlp_document(report: &sher_pe_model::DiagnosticReport) -> serde_json::Value {
+    use serde_json::json;
+    let generated_ns = (report.generated_at.max(0) as u64) * 1_000_000_000;
+    let trace_id = format!(
+        "{:032x}",
+        ((report.pid as u128) << 64) | (report.generated_at.max(0) as u128)
+    );
+    let root_span_id = format!("{:016x}", report.pid as u64);
+    let mut events = Vec::new();
+    for (index, finding) in report.findings.iter().enumerate() {
+        events.push(json!({
+            "name": finding.title,
+            "timeUnixNano": generated_ns.to_string(),
+            "attributes": [
+                attr("sher.finding.severity", &format!("{:?}", finding.severity)),
+                attr("sher.finding.confidence", &format!("{:?}", finding.confidence)),
+                attr("sher.finding.narrative", &finding.narrative),
+                attr("sher.finding.index", &index.to_string()),
+            ]
+        }));
+    }
+    json!({
+        "resourceSpans": [{
+            "resource": {
+                "attributes": [
+                    attr("service.name", "sher-process-explorer"),
+                    attr("process.pid", &report.pid.to_string()),
+                    attr("process.name", &report.process.name),
+                ]
+            },
+            "scopeSpans": [{
+                "scope": {"name": "sher.process-explorer", "version": env!("CARGO_PKG_VERSION")},
+                "spans": [{
+                    "traceId": trace_id,
+                    "spanId": root_span_id,
+                    "name": format!("process.inspect {}", report.process.name),
+                    "kind": 1,
+                    "startTimeUnixNano": generated_ns.to_string(),
+                    "endTimeUnixNano": generated_ns.to_string(),
+                    "attributes": [
+                        attr("sher.findings.count", &report.findings.len().to_string()),
+                        attr("sher.process.pid", &report.pid.to_string()),
+                    ],
+                    "status": {"code": 1},
+                    "events": events,
+                }]
+            }]
+        }]
+    })
+}
+
+fn attr(key: &str, value: &str) -> serde_json::Value {
+    serde_json::json!({"key": key, "value": {"stringValue": value}})
 }
 
 /// `sher kill <pid>` — sends a real POSIX signal to a real process.

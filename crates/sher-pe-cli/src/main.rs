@@ -2,6 +2,7 @@
 //! `sher-pe-intelligence`/`sher-pe-investigation` this pass; a future GUI
 //! calls the exact same APIs, never a separate code path.
 
+mod ebpf;
 mod render;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -102,6 +103,17 @@ enum Command {
         pid: Pid,
         #[arg(long)]
         output: Option<std::path::PathBuf>,
+        /// Emit OTLP/JSON (ExportTraceServiceRequest) instead of the native report.
+        #[arg(long)]
+        otlp: bool,
+    },
+    /// Run a curated bpftrace script for off-CPU/IO/run-queue investigation.
+    Ebpf {
+        pid: Pid,
+        #[arg(value_parser = ["offcpu", "iolatency", "runqlat"], default_value = "offcpu")]
+        script: String,
+        #[arg(long, default_value_t = 5)]
+        duration_secs: u64,
     },
     /// Send a POSIX signal to a process (default: SIGTERM). Prompts for
     /// interactive confirmation unless `--yes` is passed — this sends a
@@ -282,7 +294,30 @@ fn main() {
         Command::Kill { pid, signal, yes } => {
             render::kill(&intel, pid, signal.into(), yes, cli.json)
         }
-        Command::Export { pid, output } => render::export(&intel, pid, output.as_deref()),
+        Command::Ebpf {
+            pid,
+            script,
+            duration_secs,
+        } => match ebpf::command(&script, pid, duration_secs) {
+            Ok((program, args)) => match std::process::Command::new(program).args(args).status() {
+                Ok(status) => status.code().unwrap_or(1),
+                Err(e) => {
+                    eprintln!("sher: failed to run bpftrace: {e}");
+                    1
+                }
+            },
+            Err(e) => {
+                eprintln!("sher: {e}");
+                1
+            }
+        },
+        Command::Export { pid, output, otlp } => {
+            if otlp {
+                render::export_otlp(&intel, pid, output.as_deref())
+            } else {
+                render::export(&intel, pid, output.as_deref())
+            }
+        }
         Command::History {
             pid,
             since_secs,
