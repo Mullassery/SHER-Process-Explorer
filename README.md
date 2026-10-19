@@ -94,6 +94,16 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the crate-by-crate design and depen
 - [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
 - [`CHANGELOG.md`](CHANGELOG.md)
 
+## Known issues and deferred work
+
+**Blocked / failed:**
+- Publish .deb/.rpm/AUR; non-root mode; JSON/OTEL/TUI.
+
+**Rejected / deferred:**
+- AI narrative layer now; deterministic evidence is the product.
+
+Full shipped/blocked/rejected detail: [`QUEUE_STATUS.md`](QUEUE_STATUS.md).
+
 ## Queue status
 
 Shipped, blocked/failed, and rejected work for this repository is documented in
