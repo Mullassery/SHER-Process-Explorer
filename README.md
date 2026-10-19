@@ -94,6 +94,11 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the crate-by-crate design and depen
 - [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
 - [`CHANGELOG.md`](CHANGELOG.md)
 
+## Queue status
+
+Shipped, blocked/failed, and rejected work for this repository is documented in
+[`QUEUE_STATUS.md`](QUEUE_STATUS.md).
+
 ## Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development workflow, required checks (`cargo build`/`test`/`clippy`/`fmt`), and this project's architectural rules. This is a single-maintainer project (see [`SECURITY.md`](SECURITY.md)) — review happens on a best-effort basis, not a fixed schedule.
