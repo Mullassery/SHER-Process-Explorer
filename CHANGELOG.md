@@ -67,5 +67,5 @@ summary for people who just want the shape of what's shipped.
   telemetry; no code exists for this yet.
 - Phase 7: an optional, opt-in LLM narrative layer over `Finding`/
   `Evidence` — no code exists for this yet.
-- See `ROADMAP_HONEST.md` for the full honest-status and technical-debt
+- See `docs/internal/ROADMAP_HONEST.md` for the full honest-status and technical-debt
   breakdown, including items from Phase 9/10 still marked "pending."

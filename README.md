@@ -115,7 +115,7 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the crate-by-crate design and depen
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — full crate-by-crate design and dependency diagram
 - [`ROADMAP.md`](ROADMAP.md) — the phase-by-phase build record and how each phase was validated
-- [`ROADMAP_HONEST.md`](ROADMAP_HONEST.md) — blunt status/technical-debt audit by file/line
+- [`docs/internal/ROADMAP_HONEST.md`](docs/internal/ROADMAP_HONEST.md) — blunt status/technical-debt audit by file/line
 - [`CLAUDE.md`](CLAUDE.md) — architectural philosophy and non-negotiables
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — development workflow and required checks
 - [`SECURITY.md`](SECURITY.md) — how to report a vulnerability
@@ -130,7 +130,7 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the crate-by-crate design and depen
 **Rejected / deferred:**
 - AI narrative layer now; deterministic evidence is the product.
 
-Full shipped/blocked/rejected detail: [`QUEUE_STATUS.md`](QUEUE_STATUS.md).
+Full shipped/blocked/rejected detail: [`docs/internal/QUEUE_STATUS.md`](docs/internal/QUEUE_STATUS.md).
 
 ## Contributing
 

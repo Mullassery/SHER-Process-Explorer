@@ -28,7 +28,7 @@ returns a typed `TelemetryError::Unsupported` for it by default, never a
 silent empty/zero result. The same discipline applies everywhere: a missing
 capability is a typed error, not a silent default. See `ROADMAP.md` for
 exactly which phases/items are shipped vs. not started, and
-`ROADMAP_HONEST.md` for an honesty-audited summary plus known technical
+`docs/internal/ROADMAP_HONEST.md` for an honesty-audited summary plus known technical
 debt.
 
 ## Cross-repo boundary

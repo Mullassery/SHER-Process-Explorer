@@ -10,7 +10,7 @@ For anything beyond a small fix (a new feature, a change to the
 `TelemetryAdapter` trait, a new "why" rule), open an issue first describing
 what you want to do and why. This project has a deliberate architecture
 (see `ARCHITECTURE.md` and `CLAUDE.md`) and a phased roadmap (`ROADMAP.md`,
-`ROADMAP_HONEST.md`) — an issue first avoids wasted work on something that
+`docs/internal/ROADMAP_HONEST.md`) — an issue first avoids wasted work on something that
 doesn't fit either.
 
 ## Development environment
@@ -81,7 +81,7 @@ before a PR can merge.
 - Update `CHANGELOG.md` under `[Unreleased]` for any user-visible change.
 - If your change affects a claim made in `README.md`, `ARCHITECTURE.md`, or
   `ROADMAP.md`, update those in the same PR — this project treats doc/code
-  drift as a bug (see `ROADMAP_HONEST.md`'s technical debt section for
+  drift as a bug (see `docs/internal/ROADMAP_HONEST.md`'s technical debt section for
   where that has already happened once).
 
 ## Reporting bugs / requesting features

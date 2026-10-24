@@ -81,7 +81,7 @@ There is no dedicated security email address and no bug bounty program.
 ## Dependency security
 
 `cargo audit` / `cargo deny` are not yet wired into CI (tracked in
-`ROADMAP_HONEST.md`). Dependencies were last spot-checked manually during
+`docs/internal/ROADMAP_HONEST.md`). Dependencies were last spot-checked manually during
 this audit pass; this repo currently has no automated, recurring dependency
 vulnerability scan. Dependabot (`.github/dependabot.yml`) is configured to
 open PRs for outdated/vulnerable `cargo` and GitHub Actions dependencies,
