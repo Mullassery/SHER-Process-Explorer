@@ -3,7 +3,7 @@
 `ps aux` tells you a process exists. SHER Process Explorer tells you why it is misbehaving — with evidence pointing at the exact raw source for every claim.
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![CI](https://github.com/Mullassery/SHER-Process-Explorer/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/SHER-Process-Explorer/actions/workflows/ci.yml)
+[![CI](../SHER-Process-Explorer/actions/workflows/ci.yml/badge.svg)](../SHER-Process-Explorer/actions/workflows/ci.yml)
 
 ## What it is
 
@@ -50,7 +50,7 @@ It is a Rust workspace of eight crates (about 172 tests, CI green) with a CLI (`
 Packages (`.deb`, `.rpm`, AUR `PKGBUILD`) are built and verified but not yet published anywhere, so build from source for now:
 
 ```bash
-git clone https://github.com/Mullassery/SHER-Process-Explorer.git
+git clone ../SHER-Process-Explorer
 cd SHER-Process-Explorer
 cargo build --workspace
 ```
@@ -142,14 +142,14 @@ SHER-Process-Explorer is part of the SHER OS family — an AI-native operating s
 
 | Tool | Role | What it does |
 |---|---|---|
-| [SHER-KERNEL](https://github.com/Mullassery/SHER-KERNEL) | Kernel core | Core kernel scaffolding: object model, scheduling, memory, driver-lifecycle concepts, and a Linux Kernel Interface (LKI) compatibility layer. |
-| [SHER-Graphics](https://github.com/Mullassery/SHER-Graphics) | Graphics/GPU | GPU abstraction and rendering — software simulation plus a real, working Vulkan/MoltenVK backend. |
-| [SHER-Display](https://github.com/Mullassery/SHER-Display) | Display/compositor | Display server, compositor, and window management. |
-| [SHER-INPUT](https://github.com/Mullassery/SHER-INPUT) | Input | Canonical, backend-independent input event stream — real evdev on Linux, simulated backend for hardware-free testing. |
-| [SHER-Aurora](https://github.com/Mullassery/SHER-Aurora) | Design system | GNOME-style design system — tokens, typography, motion, and an automated WCAG contrast audit. |
-| [SHER-Process-Explorer](https://github.com/Mullassery/SHER-Process-Explorer) | Observability | **This project** — evidence-based Linux process investigation tool: /proc telemetry, bpftrace integration, daemon + CLI + desktop UI. |
+| [SHER-KERNEL](../SHER-KERNEL) | Kernel core | Core kernel scaffolding: object model, scheduling, memory, driver-lifecycle concepts, and a Linux Kernel Interface (LKI) compatibility layer. |
+| [SHER-Graphics](../SHER-Graphics) | Graphics/GPU | GPU abstraction and rendering — software simulation plus a real, working Vulkan/MoltenVK backend. |
+| [SHER-Display](../SHER-Display) | Display/compositor | Display server, compositor, and window management. |
+| [SHER-INPUT](../SHER-INPUT) | Input | Canonical, backend-independent input event stream — real evdev on Linux, simulated backend for hardware-free testing. |
+| [SHER-Aurora](../SHER-Aurora) | Design system | GNOME-style design system — tokens, typography, motion, and an automated WCAG contrast audit. |
+| [SHER-Process-Explorer](../SHER-Process-Explorer) | Observability | **This project** — evidence-based Linux process investigation tool: /proc telemetry, bpftrace integration, daemon + CLI + desktop UI. |
 
-Each works standalone; they're complementary by design. [Browse all projects →](https://github.com/Mullassery?tab=repositories)
+Each works standalone; they're complementary by design. [Browse all projects →](../Mullassery-profile)
 
 ## License
 
