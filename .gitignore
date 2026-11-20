@@ -4,4 +4,4 @@
 .DS_Store
 Cargo.lock.bak
 
-graphify-out/
+codeatlas-out/

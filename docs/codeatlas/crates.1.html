@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>CodeAtlas</title>
+<script src="https://unpkg.com/cytoscape@3.23.0/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre@2.4.0/cytoscape-dagre.js"></script>
+<style>
+  body { margin: 0; font-family: -apple-system, sans-serif; }
+  #cy { width: 100vw; height: 100vh; }
+  header { padding: 12px 16px; border-bottom: 1px solid #eee; }
+</style>
+</head>
+<body>
+<header>
+  <strong>CodeAtlas</strong>
+  <p>Owns 0 symbols across 0 file(s).</p>
+</header>
+<div id="cy"></div>
+<script>
+const data = {"nodes": [{"data": {"id": "sher_pe_cli", "label": "sher-pe-cli", "description": "Owns 0 symbols across 1 file(s).", "linkUrl": "./sher_pe_cli.html"}}, {"data": {"id": "sher_pe_daemon", "label": "sher-pe-daemon", "description": "Owns 0 symbols across 1 file(s).", "linkUrl": "./sher_pe_daemon.html"}}, {"data": {"id": "sher_pe_gui", "label": "sher-pe-gui", "description": "Owns 0 symbols across 1 file(s).", "linkUrl": "./sher_pe_gui.html"}}, {"data": {"id": "sher_pe_history", "label": "sher-pe-history", "description": "Owns 0 symbols across 1 file(s).", "linkUrl": "./sher_pe_history.html"}}, {"data": {"id": "sher_pe_intelligence", "label": "sher-pe-intelligence", "description": "Owns 0 symbols across 1 file(s).", "linkUrl": "./sher_pe_intelligence.html"}}, {"data": {"id": "sher_pe_investigation", "label": "sher-pe-investigation", "description": "Owns 0 symbols across 1 file(s).", "linkUrl": "./sher_pe_investigation.html"}}, {"data": {"id": "sher_pe_model", "label": "sher-pe-model", "description": "Owns 0 symbols across 1 file(s).", "linkUrl": "./sher_pe_model.html"}}, {"data": {"id": "sher_pe_telemetry", "label": "sher-pe-telemetry", "description": "Owns 0 symbols across 1 file(s).", "linkUrl": "./sher_pe_telemetry.html"}}], "edges": [{"data": {"id": "edge_0", "source": "sher_pe_cli", "target": "sher_pe_history", "label": "calls"}}, {"data": {"id": "edge_1", "source": "sher_pe_cli", "target": "sher_pe_intelligence", "label": "calls"}}, {"data": {"id": "edge_2", "source": "sher_pe_cli", "target": "sher_pe_investigation", "label": "calls"}}, {"data": {"id": "edge_3", "source": "sher_pe_cli", "target": "sher_pe_model", "label": "calls"}}, {"data": {"id": "edge_4", "source": "sher_pe_daemon", "target": "sher_pe_cli", "label": "calls"}}, {"data": {"id": "edge_5", "source": "sher_pe_daemon", "target": "sher_pe_history", "label": "calls"}}, {"data": {"id": "edge_6", "source": "sher_pe_daemon", "target": "sher_pe_intelligence", "label": "calls"}}, {"data": {"id": "edge_7", "source": "sher_pe_daemon", "target": "sher_pe_model", "label": "calls"}}, {"data": {"id": "edge_8", "source": "sher_pe_gui", "target": "sher_pe_cli", "label": "calls"}}, {"data": {"id": "edge_9", "source": "sher_pe_gui", "target": "sher_pe_intelligence", "label": "calls"}}, {"data": {"id": "edge_10", "source": "sher_pe_gui", "target": "sher_pe_investigation", "label": "calls"}}, {"data": {"id": "edge_11", "source": "sher_pe_gui", "target": "sher_pe_model", "label": "calls"}}, {"data": {"id": "edge_12", "source": "sher_pe_intelligence", "target": "sher_pe_model", "label": "calls"}}, {"data": {"id": "edge_13", "source": "sher_pe_intelligence", "target": "sher_pe_telemetry", "label": "calls"}}, {"data": {"id": "edge_14", "source": "sher_pe_investigation", "target": "sher_pe_intelligence", "label": "calls"}}, {"data": {"id": "edge_15", "source": "sher_pe_investigation", "target": "sher_pe_model", "label": "calls"}}, {"data": {"id": "edge_16", "source": "sher_pe_investigation", "target": "sher_pe_telemetry", "label": "calls"}}, {"data": {"id": "edge_17", "source": "sher_pe_model", "target": "sher_pe_cli", "label": "calls"}}]};
+const cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: data,
+  style: [
+    { selector: 'node', style: {
+      'label': 'data(label)',
+      'shape': 'round-rectangle',
+      'background-color': '#eef2ff',
+      'border-color': '#6366f1',
+      'border-width': 1,
+      'width': 'label',
+      'padding': '10px',
+      'text-valign': 'center',
+      'text-halign': 'center',
+      'font-size': '12px',
+    }},
+    { selector: 'edge', style: {
+      'label': 'data(label)',
+      'curve-style': 'bezier',
+      'target-arrow-shape': 'triangle',
+      'font-size': '10px',
+      'text-rotation': 'autorotate',
+    }}
+  ],
+  layout: { name: 'dagre', rankDir: 'LR' }
+});
+cy.on('tap', 'node', evt => {
+  const node = evt.target;
+  if (node.data('linkUrl')) { window.location.href = node.data('linkUrl'); }
+});
+</script>
+</body>
+</html>
